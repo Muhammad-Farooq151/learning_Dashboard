@@ -9,13 +9,22 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.2",
+    "@mui/material": "^7.3.2",
+    "formik": "^2.4.6",
+    "next": "15.5.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.3"
+    "react-hot-toast": "^2.6.0",
+    "react-phone-number-input": "^3.4.12",
+    "react-spinners": "^0.17.0",
+    "yup": "^1.7.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3",
     "eslint": "^9",
-    "eslint-config-next": "15.5.3",
-    "@eslint/eslintrc": "^3"
+    "eslint-config-next": "15.5.3"
   }
 }

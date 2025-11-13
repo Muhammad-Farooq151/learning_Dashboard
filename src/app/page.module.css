@@ -13,19 +13,10 @@
   min-height: 100svh;
   padding: 80px;
   gap: 64px;
-  font-family: var(--font-geist-sans);
+  font-family: "DM Sans", Arial, Helvetica, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  .page {
-    --gray-rgb: 255, 255, 255;
-    --gray-alpha-200: rgba(var(--gray-rgb), 0.145);
-    --gray-alpha-100: rgba(var(--gray-rgb), 0.06);
 
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-  }
-}
 
 .main {
   display: flex;
@@ -35,7 +26,7 @@
 }
 
 .main ol {
-  font-family: var(--font-geist-mono);
+  font-family: "DM Sans", Arial, Helvetica, sans-serif;
   padding-left: 0;
   margin: 0;
   font-size: 14px;
@@ -157,11 +148,5 @@ a.secondary {
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
   }
 }

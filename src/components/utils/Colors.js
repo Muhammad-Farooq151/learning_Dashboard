@@ -1,0 +1,1 @@
+export const greenColor = "#329D7B"
