@@ -1,9 +1,8 @@
-import React from 'react'
+import SettingsPage from "@/components/user/settings/SettingsPage";
+import React from "react";
 
-function page() {
-  return (
-    <div>settings</div>
-  )
+function Page() {
+  return <SettingsPage />;
 }
 
-export default page
+export default Page;

@@ -17,6 +17,7 @@ import { greenColor } from "@/components/utils/Colors";
 import { ClipLoader } from "react-spinners";
 import toast from "react-hot-toast";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import { useRouter } from "next/navigation";
 
 // Dummy API simulation
 const fetchCourses = () =>
@@ -67,6 +68,7 @@ const fetchCourses = () =>
   });
 
 function MyLearnings() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(0);
   const [courses, setCourses] = useState({ inProgress: [], completed: [] });
@@ -145,6 +147,7 @@ function MyLearnings() {
           ) : (
             <Button
               variant="contained"
+              onClick={() => router.push(`/user/my-leaning/${course.id}`)}
               sx={{
                 backgroundColor: greenColor,
                 "&:hover": { opacity: 0.9, backgroundColor: greenColor },

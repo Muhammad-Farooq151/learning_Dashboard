@@ -6,33 +6,33 @@ import {
   Card,
   CardContent,
   Typography,
-  Button,
   Stack,
   Divider,
   Link as MLink,
+  Button,
 } from "@mui/material";
 import { CheckCircleOutline } from "@mui/icons-material";
-import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "react-hot-toast";
-import { greenColor } from "../utils/Colors"; // adjust path if needed
+import { greenColor } from "../utils/Colors";
 import { postJSON } from "@/utils/http";
 
-const RADIUS = 12;
 const COOLDOWN_SECS = 30;
 
-export default function ResetEmailSend() {
-  const router = useRouter();
+export default function VerificationEmailSent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const email = useMemo(() => searchParams.get("email") || "", [searchParams]);
-
   const [cooldown, setCooldown] = useState(0);
   const [resending, setResending] = useState(false);
 
   useEffect(() => {
     if (!cooldown) return;
-    const t = setInterval(() => setCooldown((s) => (s > 0 ? s - 1 : 0)), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => {
+      setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
   }, [cooldown]);
 
   const handleResend = useCallback(async () => {
@@ -42,11 +42,11 @@ export default function ResetEmailSend() {
     }
     try {
       setResending(true);
-      await postJSON("/api/auth/forgot-password", { email });
-      toast.success("Reset link sent again.");
+      await postJSON("/api/auth/resend-otp", { email });
+      toast.success("Verification link sent again.");
       setCooldown(COOLDOWN_SECS);
-    } catch (e) {
-      toast.error(e.message || "Unable to resend. Try again.");
+    } catch (error) {
+      toast.error(error.message || "Unable to resend. Try again.");
     } finally {
       setResending(false);
     }
@@ -64,30 +64,20 @@ export default function ResetEmailSend() {
         }}
       >
         <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-          <Stack spacing={2} alignItems="center" sx={{ textAlign: "center" }}>
+          <Stack spacing={2} alignItems="center" textAlign="center">
             <CheckCircleOutline sx={{ fontSize: 48, color: greenColor }} />
-            <Typography
-              variant="h5"
-              fontWeight={700}
-              sx={{ fontSize: { xs: 22, sm: 24, md: 26 } }}
-            >
-              Password Reset Email Sent
+            <Typography variant="h5" fontWeight={700} sx={{ fontSize: { xs: 22, sm: 24, md: 26 } }}>
+              Verification Link Sent
             </Typography>
-
             <Typography variant="body1" sx={{ color: "black", maxWidth: 520 }}>
-              Check your inbox{email ? ` (${email})` : ""}. We’ve sent you instructions to
-              reset your password. Follow the link to securely create a new one.
+              We&apos;ve emailed a verification link to {email || "your inbox"}. Open it to activate your LearningHub
+              account.
             </Typography>
 
             <Divider sx={{ width: "100%", my: 2 }} />
 
             <Typography variant="body2" sx={{ color: "black" }}>
-              Didn’t receive the email? 
-            
-            </Typography>
-              <Typography variant="body2" sx={{ color: "black" ,pt:-2}}>
-            
-              Check your spam folder or{" "}
+              Didn&apos;t get the email? Check your spam folder or{" "}
               <MLink
                 component="button"
                 type="button"
@@ -104,34 +94,20 @@ export default function ResetEmailSend() {
               .
             </Typography>
 
-            {/* <Stack direction="row" spacing={1.5} justifyContent="center" sx={{ mt: 1 }}>
+            <Stack direction="row" spacing={1.5} justifyContent="center" sx={{ mt: 1 }}>
               <Button
-                component={Link}
-                href="/forgot-password"
                 variant="text"
+                component={Link}
+                href="/"
                 sx={{ textTransform: "none" }}
-              >
-                Change email
-              </Button>
-
-              <Button
-                variant="contained"
-                disableElevation
-                onClick={() => router.push("/")}
-                sx={{
-                  textTransform: "none",
-                  fontWeight: 700,
-                  borderRadius: RADIUS,
-                  bgcolor: greenColor,
-                  ":hover": { bgcolor: greenColor },
-                }}
               >
                 Back to Login
               </Button>
-            </Stack> */}
+            </Stack>
           </Stack>
         </CardContent>
       </Card>
     </Box>
   );
 }
+

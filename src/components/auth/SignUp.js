@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { greenColor } from "../utils/Colors";
+import { postJSON } from "@/utils/http";
 
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -56,27 +57,19 @@ export default function SignUp() {
       confirmPassword: "",
     },
     validationSchema,
-    onSubmit: async () => {
+    onSubmit: async (values) => {
       try {
         setLoading(true);
-        const errs = await formik.validateForm();
-        if (Object.keys(errs).length) {
-          formik.setTouched({
-            fullName: true,
-            email: true,
-            phone: true,
-            password: true,
-            confirmPassword: true,
-          });
-          toast.error("Please fix the highlighted fields.");
-          setLoading(false);
-          return;
-        }
-        await new Promise((r) => setTimeout(r, 1200));
-        toast.success("Account created successfully");
-        router.push("/");
-      } catch {
-        toast.error("Signup failed. Try again.");
+        await postJSON("/api/auth/signup", {
+          fullName: values.fullName,
+          email: values.email,
+          phoneNumber: values.phone,
+          password: values.password,
+        });
+        toast.success("Verification link sent to your email.");
+        router.push(`/verify-email-link-sent?email=${encodeURIComponent(values.email)}`);
+      } catch (error) {
+        toast.error(error.message || "Signup failed. Try again.");
       } finally {
         setLoading(false);
       }
@@ -99,7 +92,7 @@ export default function SignUp() {
         <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
           <Stack spacing={2} alignItems="center" sx={{ mb: 2 }}>
             <Typography variant="h5" fontWeight={600} fontSize={["18px", "20px", "22px"]} textAlign="center">
-              Create Your Learning HUB Account
+              Create Your LearningHub Account
             </Typography>
             <Typography variant="body2" fontWeight={300} fontSize={["16px","16px","16px"]} textAlign="center">
               Start your journey with personalized courses, progress tracking, and

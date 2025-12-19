@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { greenColor } from "../utils/Colors";
 import { Email } from "@mui/icons-material";
+import { postJSON } from "@/utils/http";
 
 const INPUT_HEIGHT = 56;
 const RADIUS = 12;
@@ -40,17 +41,11 @@ export default function ForgetPassword() {
     onSubmit: async (values) => {
       try {
         setLoading(true);
-
-        // 👉 Replace with your real API call
-        // await axios.post("/api/auth/forgot-password", { email: values.email });
-        await new Promise((r) => setTimeout(r, 800));
-
+        await postJSON("/api/auth/forgot-password", { email: values.email });
         toast.success("Reset link sent to your email.");
-       // inside onSubmit in ForgetPassword
-router.push(`/password-email-sent?email=${encodeURIComponent(values.email)}`);
-
+        router.push(`/password-email-sent?email=${encodeURIComponent(values.email)}`);
       } catch (err) {
-        toast.error("Unable to send reset link. Try again.");
+        toast.error(err.message || "Unable to send reset link. Try again.");
       } finally {
         setLoading(false);
       }

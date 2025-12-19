@@ -1,0 +1,42 @@
+.settings-phone-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.settings-phone-input .PhoneInputCountry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.settings-phone-input .PhoneInputCountrySelect {
+  display: none;
+}
+
+.settings-phone-input .PhoneInputCountryIcon {
+  width: 20px;
+  height: 14px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 1px rgba(15, 23, 42, 0.15);
+}
+
+.settings-phone-input .PhoneInputCountryIcon--border {
+  box-shadow: none;
+}
+
+.settings-phone-input .PhoneInputInput {
+  border: none;
+  outline: none;
+  font-size: 14px;
+  width: 100%;
+  font-family: inherit;
+}
+

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useMemo, useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Box,
@@ -13,6 +12,12 @@ import {
   ListItemText,
   Divider,
   IconButton,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
@@ -23,6 +28,8 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import PowerSettingsNewOutlinedIcon from "@mui/icons-material/PowerSettingsNewOutlined";
 import { ClipLoader } from "react-spinners";
 import { greenColor } from "@/components/utils/Colors";
+import { toast } from "react-hot-toast";
+import { clearAuthToken } from "@/utils/authStorage";
 
 const NAV = [
   { label: "Dashboard", href: "/user/dashboard", icon: <DashboardRoundedIcon /> },
@@ -36,12 +43,7 @@ const NAV = [
 function NavItem({ item, active, onNavigate }) {
   return (
     <ListItemButton
-      component="a"
-      href={item.href}
-      onClick={(e) => {
-        e.preventDefault();           // use client navigation + show loader
-        onNavigate(item.href);
-      }}
+      onClick={() => onNavigate(item.href)}
       sx={{
         position: "relative",
         borderRadius: 2,
@@ -88,7 +90,10 @@ function NavItem({ item, active, onNavigate }) {
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const [navLoading, setNavLoading] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const isLoading = navLoading || logoutLoading;
 
   const activeKey = useMemo(() => {
     let best = "";
@@ -100,24 +105,36 @@ export default function Sidebar() {
 
   // hide loader when route (pathname) changes
   useEffect(() => {
-    if (loading) setLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+    if (navLoading) setNavLoading(false);
+  }, [pathname, navLoading]);
 
   const onNavigate = useCallback(
     (href) => {
       if (href === pathname) return; // no-op if already there
-      setLoading(true);
+      setNavLoading(true);
       router.push(href);
     },
     [router, pathname]
   );
 
-  const handleLogout = () => {
-    // TODO: clear auth, call API, remove tokens, etc.
-    setLoading(true);
-    router.push("/"); // go to login
+  const handleLogoutRequest = () => setConfirmOpen(true);
+  const handleCancelLogout = () => {
+    if (!logoutLoading) setConfirmOpen(false);
   };
+
+  const performLogout = useCallback(async () => {
+    setConfirmOpen(false);
+    setLogoutLoading(true);
+    try {
+      clearAuthToken();
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      toast.success("Logged out successfully");
+      router.push("/");
+    } catch (error) {
+      setLogoutLoading(false);
+      toast.error("Failed to logout. Please try again.");
+    }
+  }, [router]);
 
   return (
     <>
@@ -161,7 +178,7 @@ export default function Sidebar() {
         {/* Logout */}
         <Stack direction="row" alignItems="center" sx={{ px: 1, pb: 1, pt: 0.5 }}>
           <IconButton
-            onClick={handleLogout}
+            onClick={handleLogoutRequest}
             size="small"
             sx={{
               mr: 1,
@@ -171,14 +188,37 @@ export default function Sidebar() {
           >
             <PowerSettingsNewOutlinedIcon fontSize="small" />
           </IconButton>
-          <Typography variant="body2" sx={{ cursor: "pointer" }} onClick={handleLogout}>
+          <Typography variant="body2" sx={{ cursor: "pointer" }} onClick={handleLogoutRequest}>
             Logout
           </Typography>
         </Stack>
       </Box>
 
+      <Dialog open={confirmOpen} onClose={handleCancelLogout} maxWidth="xs" fullWidth>
+        <DialogTitle fontWeight={700}>Confirm Logout</DialogTitle>
+        <DialogContent>
+          <DialogContentText color="text.primary">
+            Are you sure you want to logout? This will clear your saved session from this device.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleCancelLogout} sx={{ textTransform: "none" }} disabled={logoutLoading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={performLogout}
+            variant="contained"
+            color="error"
+            sx={{ textTransform: "none" }}
+            disabled={logoutLoading}
+          >
+            Logout
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Full-viewport overlay loader (same page) */}
-      {loading && (
+      {isLoading && (
         <Box
           sx={{
             position: "fixed",

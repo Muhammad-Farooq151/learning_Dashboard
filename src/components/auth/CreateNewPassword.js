@@ -11,14 +11,16 @@ import {
   Stack,
   InputAdornment,
   IconButton,
+  Alert,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { ClipLoader } from "react-spinners";
 import { toast } from "react-hot-toast";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { greenColor } from "../utils/Colors"; 
+import { postJSON } from "@/utils/http";
 
 const INPUT_HEIGHT = 56;
 const RADIUS = "8px";
@@ -36,6 +38,10 @@ const validationSchema = Yup.object({
 
 export default function CreateNewPassword() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const email = searchParams.get("email") || "";
+  const token = searchParams.get("token") || "";
+  const isLinkMissing = !email || !token;
   const [showPass, setShowPass] = useState(false);
   const [showCPass, setShowCPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -44,15 +50,21 @@ export default function CreateNewPassword() {
     initialValues: { password: "", confirmPassword: "" },
     validationSchema,
     onSubmit: async (values) => {
+      if (!email || !token) {
+        toast.error("Reset link is invalid or missing.");
+        return;
+      }
       try {
         setLoading(true);
-        // 👉 replace with your real API call
-        // await axios.post("/api/auth/reset-password", values);
-        await new Promise((r) => setTimeout(r, 800));
+        await postJSON("/api/auth/reset-password", {
+          email,
+          token,
+          password: values.password,
+        });
         toast.success("Password updated successfully");
-        router.push("/"); // back to login/home
+        router.push("/");
       } catch (e) {
-        toast.error("Failed to update password. Try again.");
+        toast.error(e.message || "Failed to update password. Try again.");
       } finally {
         setLoading(false);
       }
@@ -85,6 +97,12 @@ export default function CreateNewPassword() {
             </Typography>
             
           </Stack>
+
+          {isLinkMissing && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              This reset link is invalid or has expired. Please request a new password reset email.
+            </Alert>
+          )}
 
           <Box component="form" noValidate onSubmit={formik.handleSubmit}>
             <Stack spacing={2}>

@@ -1,9 +1,8 @@
-import React from 'react'
+import DashboardOverview from "@/components/user/dashboard/DashboardOverview";
+import React from "react";
 
-function page() {
-  return (
-    <div>page</div>
-  )
+function Page() {
+  return <DashboardOverview />;
 }
 
-export default page
+export default Page;

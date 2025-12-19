@@ -2,10 +2,18 @@
 
 import React, { useState } from "react";
 import {
-  Box, Card, CardContent, Typography, TextField, Button,
-  InputAdornment, IconButton, Divider, Stack
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  TextField,
+  Button,
+  InputAdornment,
+  IconButton,
+  Divider,
+  Stack,
 } from "@mui/material";
-import { Visibility, VisibilityOff, Email } from "@mui/icons-material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { ClipLoader } from "react-spinners";
@@ -14,6 +22,8 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { greenColor } from "../utils/Colors";
 import Link from "next/link";
+import { postJSON } from "@/utils/http";
+import { persistAuthToken } from "@/utils/authStorage";
 
 const validationSchema = Yup.object({
   email: Yup.string().email("Invalid email").required("Email is required"),
@@ -28,14 +38,15 @@ export default function LoginPage() {
   const formik = useFormik({
     initialValues: { email: "", password: "" },
     validationSchema,
-    onSubmit: async () => {
+    onSubmit: async (values) => {
       try {
         setLoading(true);
-        await new Promise((r) => setTimeout(r, 1200));
-        toast.success("Logged in successfully");
+        const data = await postJSON("/api/auth/login", values);
+        persistAuthToken(data.token, data.user);
+        toast.success("Welcome back to LearningHub");
         router.push("/user/dashboard");
       } catch (e) {
-        toast.error("Login failed. Try again.");
+        toast.error(e.message || "Login failed. Try again.");
       } finally {
         setLoading(false);
       }
@@ -60,7 +71,7 @@ export default function LoginPage() {
         <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
           <Stack spacing={2} alignItems="center" sx={{ mb: 2 }}>
             <Typography variant="h5" fontWeight={600} fontSize={["18px","20px","22px"]} textAlign="center">
-              Welcome Back to Learning HUB
+              Welcome Back to LearningHub
             </Typography>
             <Typography variant="body2" fontWeight={300} fontSize={["16px","16px","16px"]} textAlign="center">
               Pick up right where you left off — continue your lessons, check your progress, and explore new learning opportunities.
