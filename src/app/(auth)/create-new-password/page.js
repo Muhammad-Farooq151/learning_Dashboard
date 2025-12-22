@@ -1,11 +1,11 @@
 import CreateNewPassword from '@/components/auth/CreateNewPassword'
-import React from 'react'
+import React, { Suspense } from 'react'
 
 function page() {
   return (
-    <div>
-        <CreateNewPassword/>
-    </div>
+    <Suspense fallback={<div />}>
+      <CreateNewPassword/>
+    </Suspense>
   )
 }
 

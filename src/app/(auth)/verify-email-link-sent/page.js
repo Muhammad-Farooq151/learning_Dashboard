@@ -1,11 +1,11 @@
 import VerificationEmailSent from "@/components/auth/VerificationEmailSent";
-import React from "react";
+import React, { Suspense } from "react";
 
 function Page() {
   return (
-    <div>
+    <Suspense fallback={<div />}>
       <VerificationEmailSent />
-    </div>
+    </Suspense>
   );
 }
 
