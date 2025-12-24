@@ -631,7 +631,7 @@ function UsersManagement() {
             pb: 2,
           }}
         >
-          <Typography variant="h6" fontWeight={600}>
+          <Typography fontSize={"20px"} fontWeight={600}>
             Confirm Account Deletion
           </Typography>
           <IconButton
