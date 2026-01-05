@@ -208,7 +208,7 @@ borderRadius:"8px",
             <Divider sx={{ my: 4, fontSize: "14px" }}>OR LOGIN WITH</Divider>
 
             <Box display={"flex"} justifyContent={"center"}>
-              <Box width={"20%"} display={"flex"} justifyContent={"center"}>
+              {/* <Box width={"20%"} display={"flex"} justifyContent={"center"}>
                 <Image
                   src="/images/apple.png"
                   alt="Apple"
@@ -217,7 +217,7 @@ borderRadius:"8px",
                   style={{ objectFit: "contain" }}
                   priority
                 />
-              </Box>
+              </Box> */}
               <Box width={"20%"} display={"flex"} justifyContent={"center"}>
                 <Image
                   src="/images/google.png"

@@ -299,7 +299,7 @@ export default function SignUp() {
             <Divider sx={{ my: 3, fontSize: "14px" }}>OR LOGIN WITH</Divider>
 
             <Box display="flex" justifyContent="center" gap={6}>
-              <Image src="/images/apple.png" alt="Apple" width={34} height={34} style={{ objectFit: "contain" }} priority />
+              {/* <Image src="/images/apple.png" alt="Apple" width={34} height={34} style={{ objectFit: "contain" }} priority /> */}
               <Image src="/images/google.png" alt="Google" width={34} height={34} style={{ objectFit: "contain" }} priority />
             </Box>
 
