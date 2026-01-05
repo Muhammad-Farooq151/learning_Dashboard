@@ -13,7 +13,7 @@ import {
 import { CheckCircleOutline, ErrorOutline } from "@mui/icons-material";
 import { useRouter, useSearchParams } from "next/navigation";
 import { postJSON } from "@/utils/http";
-import { toast } from "react-hot-toast";
+import Swal from "sweetalert2";
 import { greenColor } from "../utils/Colors";
 
 const STATUS = {
@@ -26,7 +26,10 @@ const STATUS = {
 export default function VerifyEmailStatus() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const email = useMemo(() => searchParams.get("email") || "", [searchParams]);
+  const email = useMemo(() => {
+    const emailParam = searchParams.get("email") || "";
+    return emailParam ? decodeURIComponent(emailParam) : "";
+  }, [searchParams]);
   const token = useMemo(() => searchParams.get("token") || "", [searchParams]);
   const [status, setStatus] = useState(
     email && token ? STATUS.LOADING : STATUS.ERROR
@@ -42,14 +45,33 @@ export default function VerifyEmailStatus() {
       }
       try {
         setStatus(STATUS.LOADING);
-        await postJSON("/api/auth/verify-otp", { email, token });
+        const response = await postJSON("/api/auth/verify-email", { email, token });
         setStatus(STATUS.SUCCESS);
-        setMessage("Your account is verified. You can now sign in to LearningHub.");
+        setMessage(response.message || "Your account is verified. You can now sign in to LearningHub.");
+        
+        const result = await Swal.fire({
+          icon: 'success',
+          title: 'Email Verified!',
+          text: 'Your account has been successfully verified. You can now login.',
+          confirmButtonColor: greenColor,
+          confirmButtonText: 'Go to Login',
+        });
+        
+        if (result.isConfirmed) {
+          router.push('/');
+        }
       } catch (error) {
         setStatus(STATUS.ERROR);
         const msg = error.message || "Verification failed. Request a new link.";
         setMessage(msg);
-        toast.error(msg);
+        
+        await Swal.fire({
+          icon: 'error',
+          title: 'Verification Failed',
+          text: msg,
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'OK',
+        });
       }
     }
     verify();

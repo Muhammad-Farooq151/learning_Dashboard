@@ -17,7 +17,7 @@ import {
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { ClipLoader } from "react-spinners";
-import { toast } from "react-hot-toast";
+import Swal from "sweetalert2";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { greenColor } from "../utils/Colors";
@@ -41,11 +41,25 @@ export default function ForgetPassword() {
     onSubmit: async (values) => {
       try {
         setLoading(true);
-        await postJSON("/api/auth/forgot-password", { email: values.email });
-        toast.success("Reset link sent to your email.");
+        const response = await postJSON("/api/auth/forgot-password", { email: values.email });
+        
+        await Swal.fire({
+          icon: 'success',
+          title: 'Reset Link Sent!',
+          text: response.message || 'If an account exists with this email, a password reset link has been sent.',
+          confirmButtonColor: greenColor,
+          confirmButtonText: 'OK',
+        });
+        
         router.push(`/password-email-sent?email=${encodeURIComponent(values.email)}`);
       } catch (err) {
-        toast.error(err.message || "Unable to send reset link. Try again.");
+        await Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: err.message || 'Unable to send reset link. Please try again.',
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'OK',
+        });
       } finally {
         setLoading(false);
       }

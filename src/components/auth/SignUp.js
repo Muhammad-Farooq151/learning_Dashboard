@@ -18,7 +18,7 @@ import { Visibility, VisibilityOff, Email } from "@mui/icons-material";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { ClipLoader } from "react-spinners";
-import { toast } from "react-hot-toast";
+import Swal from "sweetalert2";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -36,7 +36,13 @@ const validationSchema = Yup.object({
       value ? isValidPhoneNumber(value) : false
     )
     .required("Phone number is required"),
-  password: Yup.string().min(6, "Min 6 characters").required("Password is required"),
+  password: Yup.string()
+    .required("Password is required")
+    .min(8, "Password must be at least 8 characters")
+    .matches(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .matches(/[a-z]/, "Password must contain at least one lowercase letter")
+    .matches(/[0-9]/, "Password must contain at least one number")
+    .matches(/[!@#$%^&*(),.?":{}|<>]/, "Password must contain at least one special character"),
   confirmPassword: Yup.string()
     .oneOf([Yup.ref("password")], "Passwords do not match")
     .required("Confirm your password"),
@@ -66,10 +72,24 @@ export default function SignUp() {
           phoneNumber: values.phone,
           password: values.password,
         });
-        toast.success("Verification link sent to your email.");
+        
+        await Swal.fire({
+          icon: 'success',
+          title: 'Verification Link Sent!',
+          text: 'We\'ve sent a verification link to your email. Please check your inbox.',
+          confirmButtonColor: greenColor,
+          confirmButtonText: 'OK',
+        });
+        
         router.push(`/verify-email-link-sent?email=${encodeURIComponent(values.email)}`);
       } catch (error) {
-        toast.error(error.message || "Signup failed. Try again.");
+        await Swal.fire({
+          icon: 'error',
+          title: 'Signup Failed',
+          text: error.message || 'Something went wrong. Please try again.',
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'OK',
+        });
       } finally {
         setLoading(false);
       }
@@ -187,15 +207,15 @@ export default function SignUp() {
               <TextField
                 fullWidth
                 size="medium"
-                placeholder="eg: ********"
+                placeholder="eg: Abc!1234"
                 type={showPass ? "text" : "password"}
                 name="password"
                 value={formik.values.password}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
                 error={formik.touched.password && Boolean(formik.errors.password)}
-                helperText={formik.touched.password && formik.errors.password ? formik.errors.password : null}
-                FormHelperTextProps={{ sx: { m: 0, mt: 0.5 } }}
+                helperText={formik.touched.password && formik.errors.password ? formik.errors.password : " "}
+                FormHelperTextProps={{ sx: { m: 0, mt: 0.5, lineHeight: 1.25 } }}
                 InputProps={{
                   sx: { borderRadius: "8px",height:52 },
                   endAdornment: (
@@ -209,6 +229,18 @@ export default function SignUp() {
                 autoComplete="new-password"
                 inputProps={{ spellCheck: false, autoCapitalize: "none" }}
               />
+              {/* <Typography
+                variant="caption"
+                sx={{ 
+                  display: "block", 
+                  mt: 0.5, 
+                  color: "text.secondary",
+                  fontSize: "12px",
+                  lineHeight: 1.4
+                }}
+              >
+                Password must be at least 8 characters, include 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character.
+              </Typography> */}
 
               <Typography fontWeight={600} fontSize={["14px","14px","14px"]}>
                 Confirm Password
@@ -267,7 +299,7 @@ export default function SignUp() {
             <Divider sx={{ my: 3, fontSize: "14px" }}>OR LOGIN WITH</Divider>
 
             <Box display="flex" justifyContent="center" gap={6}>
-              <Image src="/images/apple.png" alt="Apple" width={34} height={34} style={{ objectFit: "contain" }} priority />
+              {/* <Image src="/images/apple.png" alt="Apple" width={34} height={34} style={{ objectFit: "contain" }} priority /> */}
               <Image src="/images/google.png" alt="Google" width={34} height={34} style={{ objectFit: "contain" }} priority />
             </Box>
 
