@@ -1,7 +1,12 @@
 "use client";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
 async function requestJSON(url, { method = "GET", body, headers = {}, ...options } = {}) {
-  const response = await fetch(url, {
+  // If URL starts with /api, use backend API URL, otherwise use relative URL
+  const fullUrl = url.startsWith('/api') ? `${API_BASE_URL}${url}` : url;
+  
+  const response = await fetch(fullUrl, {
     method,
     headers: {
       "Content-Type": "application/json",
@@ -20,7 +25,7 @@ async function requestJSON(url, { method = "GET", body, headers = {}, ...options
 
   if (!response.ok) {
     const message =
-      data?.error || data?.message || "Something went wrong. Please try again.";
+      data?.error || data?.message || data?.success === false ? data.message : "Something went wrong. Please try again.";
     throw new Error(message);
   }
 

@@ -1,18 +1,51 @@
+"use client";
+
 import Sidebar from "@/components/user/dashboard/Sidebar";
 import { Box } from "@mui/material";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { checkTokenExpiry, getStoredToken } from "@/utils/authStorage";
+import Swal from "sweetalert2";
 
 export default function UserLayout({ children }) {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Check token expiry on mount and periodically
+    const checkAuth = () => {
+      const token = getStoredToken();
+      if (!token || !checkTokenExpiry()) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Session Expired',
+          text: 'Your session has expired. Please login again.',
+          confirmButtonColor: '#3085d6',
+          confirmButtonText: 'Go to Login',
+        }).then(() => {
+          router.push('/');
+        });
+        return;
+      }
+    };
+
+    // Check immediately
+    checkAuth();
+
+    // Check every 5 minutes
+    const interval = setInterval(checkAuth, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [router]);
+
   return (
-   
-     <Box display={"flex"}>
-        <Box width={"18%"} position={"fixed"}>
-            <Sidebar/>
-        </Box>
-        <Box width={"100%"} ml={"18%"}>
-            {/* Navbar */}
-               {children}
-        </Box>
-     </Box>
-     
+    <Box display={"flex"}>
+      <Box width={"18%"} position={"fixed"}>
+        <Sidebar />
+      </Box>
+      <Box width={"100%"} ml={"18%"}>
+        {/* Navbar */}
+        {children}
+      </Box>
+    </Box>
   );
 }

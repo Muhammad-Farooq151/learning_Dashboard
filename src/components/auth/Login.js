@@ -12,12 +12,14 @@ import {
   IconButton,
   Divider,
   Stack,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { ClipLoader } from "react-spinners";
-import { toast } from "react-hot-toast";
+import Swal from "sweetalert2";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { greenColor } from "../utils/Colors";
@@ -34,6 +36,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const formik = useFormik({
     initialValues: { email: "", password: "" },
@@ -41,12 +44,29 @@ export default function LoginPage() {
     onSubmit: async (values) => {
       try {
         setLoading(true);
-        const data = await postJSON("/api/auth/login", values);
-        persistAuthToken(data.token, data.user);
-        toast.success("Welcome back to LearningHub");
-        router.push("/user/dashboard");
+        const response = await postJSON("/api/auth/login", values);
+        
+        if (response.success && response.data) {
+          persistAuthToken(response.data.token, response.data.user, rememberMe);
+          
+          await Swal.fire({
+            icon: 'success',
+            title: 'Welcome Back!',
+            text: 'You have successfully logged in to LearningHub.',
+            confirmButtonColor: greenColor,
+            confirmButtonText: 'Continue',
+          });
+          
+          router.push("/user/dashboard");
+        }
       } catch (e) {
-        toast.error(e.message || "Login failed. Try again.");
+        await Swal.fire({
+          icon: 'error',
+          title: 'Login Failed',
+          text: e.message || 'Invalid email or password. Please try again.',
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'OK',
+        });
       } finally {
         setLoading(false);
       }
@@ -136,12 +156,26 @@ borderRadius:"8px",
               />
 
               <Box display={"flex"} justifyContent={"space-between"} sx={{py:1}}>
-                <Stack direction="row" alignItems="center" spacing={1} >
-                  <input type="checkbox" id="remember" style={{ width: 16, height: 16 }} />
-                  <Typography fontSize={"14px"} fontWeight={400}>
-                    Remember Me
-                  </Typography>
-                </Stack>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      size="small"
+                      sx={{
+                        color: '#666',
+                        '&.Mui-checked': {
+                          color: greenColor,
+                        },
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography fontSize={"14px"} fontWeight={400}>
+                      Remember Me
+                    </Typography>
+                  }
+                />
 
                 <Link href={"/forget-password"}>
                   <Typography sx={{ textDecoration: "underline", fontSize: "14px", fontWeight: 400,transition:"0.3s",":hover":{

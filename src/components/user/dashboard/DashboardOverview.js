@@ -174,8 +174,8 @@ function DashboardOverview() {
               <Typography variant="subtitle1" fontWeight={600} mb={2}>
                 Monthly Learning Progress
               </Typography>
-              <Box sx={{ width: "100%", height: 260 }}>
-                <ResponsiveContainer>
+              <Box sx={{ width: "100%", height: 260, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyProgress} barSize={20}>
                     <CartesianGrid vertical={false} stroke="#F1F5F9" />
                     <XAxis
@@ -212,8 +212,8 @@ function DashboardOverview() {
               <Typography variant="subtitle1" fontWeight={600} mb={2}>
                 Learning by Category
               </Typography>
-              <Box sx={{ width: "100%", height: 220 }}>
-                <ResponsiveContainer>
+              <Box sx={{ width: "100%", height: 220, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={categoryBreakdown}

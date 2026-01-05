@@ -17,7 +17,7 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { ClipLoader } from "react-spinners";
-import { toast } from "react-hot-toast";
+import Swal from "sweetalert2";
 import { useRouter, useSearchParams } from "next/navigation";
 import { greenColor } from "../utils/Colors"; 
 import { postJSON } from "@/utils/http";
@@ -51,20 +51,40 @@ export default function CreateNewPassword() {
     validationSchema,
     onSubmit: async (values) => {
       if (!email || !token) {
-        toast.error("Reset link is invalid or missing.");
+        await Swal.fire({
+          icon: 'error',
+          title: 'Invalid Link',
+          text: 'Reset link is invalid or missing. Please request a new one.',
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'OK',
+        });
         return;
       }
       try {
         setLoading(true);
-        await postJSON("/api/auth/reset-password", {
+        const response = await postJSON("/api/auth/reset-password", {
           email,
           token,
           password: values.password,
         });
-        toast.success("Password updated successfully");
+        
+        await Swal.fire({
+          icon: 'success',
+          title: 'Password Updated!',
+          text: response.message || 'Your password has been successfully updated. You can now login.',
+          confirmButtonColor: greenColor,
+          confirmButtonText: 'Go to Login',
+        });
+        
         router.push("/");
       } catch (e) {
-        toast.error(e.message || "Failed to update password. Try again.");
+        await Swal.fire({
+          icon: 'error',
+          title: 'Update Failed',
+          text: e.message || 'Failed to update password. Please try again.',
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'OK',
+        });
       } finally {
         setLoading(false);
       }
