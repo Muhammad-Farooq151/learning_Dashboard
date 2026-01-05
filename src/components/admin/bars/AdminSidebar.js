@@ -30,14 +30,14 @@ import { ClipLoader } from "react-spinners";
 import { greenColor } from "@/components/utils/Colors";
 import { toast } from "react-hot-toast";
 import { clearAuthToken } from "@/utils/authStorage";
+import { SupervisedUserCircle } from "@mui/icons-material";
 
 const NAV = [
-  { label: "Dashboard", href: "/user/dashboard", icon: <DashboardRoundedIcon /> },
-  { label: "My Learnings", href: "/user/my-leaning", icon: <MenuBookOutlinedIcon /> },
-  { label: "Certificates", href: "/user/certifications", icon: <WorkspacePremiumOutlinedIcon /> },
-  { label: "AI Tutor", href: "/user/ai-tutor", icon: <AutoAwesomeOutlinedIcon /> },
-  { label: "Explore Courses", href: "/user/explore-courses", icon: <ExploreOutlinedIcon /> },
-  { label: "Settings", href: "/user/settings", icon: <SettingsOutlinedIcon /> },
+  { label: "Dashboard", href: "/admin/dashboard", icon: <DashboardRoundedIcon /> },
+  { label: "Courses", href: "/admin/courses", icon: <MenuBookOutlinedIcon /> },
+  { label: "Users", href: "/admin/users", icon: <SupervisedUserCircle /> },
+  { label: "Refunds", href: "/admin/refunds", icon: <WorkspacePremiumOutlinedIcon /> },
+  { label: "Settings", href: "/admin/settings", icon: <SettingsOutlinedIcon /> },
 ];
 
 function NavItem({ item, active, onNavigate }) {
@@ -87,7 +87,7 @@ function NavItem({ item, active, onNavigate }) {
   );
 }
 
-export default function Sidebar() {
+export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [navLoading, setNavLoading] = useState(false);
@@ -250,7 +250,7 @@ export default function Sidebar() {
           sx={{
             position: "fixed",
             inset: 0,
-            zIndex: 9999,
+            zIndex: 99999,
             display: "grid",
             placeItems: "center",
             backgroundColor: "rgba(255,255,255,0.75)",
