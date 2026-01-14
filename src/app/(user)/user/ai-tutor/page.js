@@ -1,9 +1,8 @@
-import React from 'react'
+import AITutor from "@/components/user/ai-tutor/AITutor";
+import React from "react";
 
 function page() {
-  return (
-    <div>ai tutor</div>
-  )
+  return <AITutor />;
 }
 
-export default page
+export default page;

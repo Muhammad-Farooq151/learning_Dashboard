@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { checkTokenExpiry, getStoredToken } from "@/utils/authStorage";
 import Swal from "sweetalert2";
+import Navbar from "@/components/user/bars/Navbar";
 
 export default function UserLayout({ children }) {
   const router = useRouter();
@@ -44,6 +45,7 @@ export default function UserLayout({ children }) {
       </Box>
       <Box width={"100%"} ml={"18%"}>
         {/* Navbar */}
+        <Navbar/>
         {children}
       </Box>
     </Box>
