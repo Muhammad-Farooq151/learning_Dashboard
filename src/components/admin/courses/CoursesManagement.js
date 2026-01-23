@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -25,6 +25,7 @@ import {
   Select,
   Stack,
   Tooltip,
+  Skeleton,
 } from "@mui/material";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
@@ -33,57 +34,8 @@ import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import { bggreen, bgred, greenColor } from "@/utils/Colors";
 import Image from "next/image";
-
-const coursesData = [
-  {
-    id: "CS001",
-    title: "React Fundamentals",
-    instructor: "Mike Chen",
-    enrolled: 0,
-    status: "Published",
-    lastUpdated: "Thu Jan 23 2025",
-  },
-  {
-    id: "CS001",
-    title: "Advanced JavaScript",
-    instructor: "Manuel O'Keefe",
-    enrolled: 2468,
-    status: "Save in Draft",
-    lastUpdated: "Mon Feb 03 2025",
-  },
-  {
-    id: "CS001",
-    title: "UI/UX Design Principles",
-    instructor: "Alyssa Wolff",
-    enrolled: 123,
-    status: "Save in Draft",
-    lastUpdated: "Tue May 20 2025",
-  },
-  {
-    id: "CS001",
-    title: "Python for Data Science",
-    instructor: "Inez Howe II",
-    enrolled: 198,
-    status: "Published",
-    lastUpdated: "Wed May 14 2025",
-  },
-  {
-    id: "CS001",
-    title: "Mobile App Development",
-    instructor: "Luke Ledner",
-    enrolled: 2464,
-    status: "Published",
-    lastUpdated: "Thu Aug 28 2025",
-  },
-];
-
-const instructors = [
-  "Mike Chen",
-  "Manuel O'Keefe",
-  "Alyssa Wolff",
-  "Inez Howe II",
-  "Luke Ledner",
-];
+import { getJSON, deleteJSON } from "@/utils/http";
+import Swal from "sweetalert2";
 
 function CoursesManagement() {
   const router = useRouter();
@@ -92,6 +44,9 @@ function CoursesManagement() {
   const [instructorFilter, setInstructorFilter] = useState("All Instructors");
   const [statusAnchorEl, setStatusAnchorEl] = useState(null);
   const [instructorAnchorEl, setInstructorAnchorEl] = useState(null);
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [instructors, setInstructors] = useState([]);
 
   const handleStatusClick = (event) => {
     setStatusAnchorEl(event.currentTarget);
@@ -119,7 +74,160 @@ function CoursesManagement() {
     handleInstructorClose();
   };
 
-  const filteredCourses = coursesData.filter((course) => {
+  const handleDeleteClick = async (course) => {
+    // Extract the actual course ID - it might be stored as _id in the original data
+    const courseId = course.originalId || course.id.replace(/^CS/, '');
+    
+    // Show SweetAlert2 confirmation dialog
+    const result = await Swal.fire({
+      title: 'Delete Course?',
+      text: `Are you sure you want to delete "${course.title}"? This action cannot be undone.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+    });
+
+    // If user confirmed deletion
+    if (result.isConfirmed) {
+      try {
+        // Show loading state
+        Swal.fire({
+          title: 'Deleting...',
+          text: 'Please wait while we delete the course',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => {
+            Swal.showLoading();
+          },
+        });
+
+        await deleteJSON(`courses/${courseId}`);
+        
+        // Show success message
+        Swal.fire({
+          icon: 'success',
+          title: 'Deleted!',
+          text: 'Course has been deleted successfully.',
+          timer: 2000,
+          showConfirmButton: false,
+        });
+
+        // Remove course from state
+        setCourses(courses.filter(c => c.id !== course.id));
+      } catch (error) {
+        console.error('Error deleting course:', error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: error.message || 'Failed to delete course. Please try again.',
+          confirmButtonText: 'OK',
+        });
+      }
+    }
+  };
+
+  const handleEditClick = (course) => {
+    // Use the original ID for navigation
+    const courseId = course.originalId || course.id.replace(/^CS/, '');
+    router.push(`/admin/courses/edit/${courseId}`);
+  };
+
+  // Fetch courses from API
+  useEffect(() => {
+    let isMounted = true;
+    
+    const fetchCourses = async () => {
+      try {
+        setLoading(true);
+        const response = await getJSON('courses').catch((err) => {
+          // Catch and handle the error here to prevent unhandled promise rejection
+          if (isMounted) {
+            // Log more detailed error information
+            if (err.response) {
+              console.error('Error fetching courses - Server responded with error:', {
+                status: err.response.status,
+                statusText: err.response.statusText,
+                data: err.response.data,
+                message: err.message
+              });
+            } else if (err.request) {
+              console.error('Error fetching courses - No response from server:', {
+                message: err.message,
+                url: err.request.responseURL || 'http://localhost:5000/api/courses',
+                baseURL: 'http://localhost:5000/api'
+              });
+            } else {
+              console.error('Error fetching courses:', err.message || err);
+            }
+            setCourses([]);
+            setInstructors([]);
+            setLoading(false);
+          }
+          return null;
+        });
+
+        if (!isMounted) return;
+
+        if (response && response.success && response.data && Array.isArray(response.data)) {
+          // Map API response to match the component structure
+          const mappedCourses = response.data.map((course) => ({
+            id: course._id || course.id || `CS${String(course._id || '').slice(-4)}`,
+            originalId: course._id || course.id, // Store original ID for API calls
+            title: course.title || 'Untitled Course',
+            instructor: course.instructor || 'Unknown Instructor',
+            enrolled: course.enrolled || 0,
+            status: course.status === 'published' ? 'Published' : course.status === 'draft' ? 'Save in Draft' : course.status || 'Draft',
+            lastUpdated: course.updatedAt 
+              ? new Date(course.updatedAt).toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  month: 'short', 
+                  day: 'numeric', 
+                  year: 'numeric' 
+                })
+              : course.createdAt 
+                ? new Date(course.createdAt).toLocaleDateString('en-US', { 
+                    weekday: 'short', 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric' 
+                  })
+                : 'N/A',
+          }));
+          setCourses(mappedCourses);
+          
+          // Extract unique instructors
+          const uniqueInstructors = [...new Set(mappedCourses.map(c => c.instructor).filter(Boolean))];
+          setInstructors(uniqueInstructors);
+        } else {
+          setCourses([]);
+          setInstructors([]);
+        }
+      } catch (error) {
+        // Silently handle errors - show empty state
+        if (isMounted) {
+          console.error('Error fetching courses:', error.message || error);
+          setCourses([]);
+          setInstructors([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchCourses();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const filteredCourses = courses.filter((course) => {
     const matchesSearch =
       course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       course.instructor.toLowerCase().includes(searchQuery.toLowerCase());
@@ -393,10 +501,12 @@ function CoursesManagement() {
               boxShadow: "none",
               border: "1px solid #E2E8F0",
               borderRadius: 2,
-              overflow: "hidden",
+              overflowX: "auto",
+              overflowY: "hidden",
+              maxWidth: { xs: "100%", md: "100%" },
             }}
           >
-            <Table>
+            <Table sx={{ minWidth: { xs: 800, md: "auto" } }}>
               <TableHead>
                 <TableRow
                   sx={{
@@ -419,97 +529,148 @@ function CoursesManagement() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredCourses.map((course, index) => (
-                  <TableRow
-                    key={index}
-                    sx={{
-                      "&:hover": {
-                        backgroundColor: "#F8FAFC",
-                      },
-                      "& td": {
-                        borderBottom: "1px solid #E2E8F0",
-                        py: 2,
-                      },
-                    }}
-                  >
-                    <TableCell>{course.id}</TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={500}>
-                        {course.title}
+                {loading ? (
+                  // Skeleton loading rows
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <TableRow
+                      key={index}
+                      sx={{
+                        "& td": {
+                          borderBottom: "1px solid #E2E8F0",
+                          py: 2,
+                        },
+                      }}
+                    >
+                      <TableCell>
+                        <Skeleton variant="text" width={80} />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton variant="text" width={200} />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton variant="text" width={150} />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton variant="text" width={80} />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton variant="rectangular" width={100} height={24} sx={{ borderRadius: 100 }} />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton variant="text" width={120} />
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" spacing={1}>
+                          <Skeleton variant="rectangular" width={44} height={36} sx={{ borderRadius: 1 }} />
+                          <Skeleton variant="rectangular" width={44} height={36} sx={{ borderRadius: 1 }} />
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredCourses.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
+                      <Typography variant="body1" color="text.secondary">
+                        {courses.length === 0 
+                          ? "No courses added yet" 
+                          : "No courses match your filters"}
                       </Typography>
-                    </TableCell>
-                    <TableCell>{course.instructor}</TableCell>
-                    <TableCell>{course.enrolled.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={course.status}
-                        size="small"
-                        sx={{
-                          backgroundColor:
-                            course.status === "Published"
-                              ? greenColor
-                              : bggreen,
-                          color:
-                            course.status === "Published" ? "#fff" : greenColor,
-                          fontWeight: 500,
-                          borderRadius: 100,
-                          height: 24,
-                          fontSize: "0.75rem",
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {course.lastUpdated}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Stack direction="row" spacing={1}>
-                        {/* <IconButton
-                          size="small"
-                          sx={{
-                            color: "#EF4444",
-                            "&:hover": {
-                              backgroundColor: "#FEE2E2",
-                            },
-                          }}
-                        >
-                          <DeleteRoundedIcon fontSize="small" />
-                        </IconButton> */}
-                        <Tooltip title="Delete">
-                        <Box bgcolor={bgred} py={"8px"} px={"12px"} borderRadius={"6px"} 
-                        sx={{cursor: "pointer"}}>
-                          <Image 
-                            src="/images/comp/redbin.png"
-                            alt="delete"
-                            width={1000}
-                            height={1000}
-                            style={{
-                              width: "20px",
-                              height: "20px",
-                            }}
-                          />
-                        </Box>
-                        </Tooltip>
-                        <Tooltip title="Edit">
-                     <Box bgcolor={bggreen} py={"8px"} px={"12px"} borderRadius={"6px"} 
-                     sx={{cursor: "pointer"}}>
-                      <Image 
-                            src="/images/comp/greenedit.png"
-                            alt="delete"
-                            width={1000}
-                            height={1000}
-                            style={{
-                              width: "20px",
-                              height: "20px",
-                            }}
-                          />
-                     </Box>
-                     </Tooltip>
-                      </Stack>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredCourses.map((course, index) => (
+                    <TableRow
+                      key={course.id || index}
+                      sx={{
+                        "&:hover": {
+                          backgroundColor: "#F8FAFC",
+                        },
+                        "& td": {
+                          borderBottom: "1px solid #E2E8F0",
+                          py: 2,
+                        },
+                      }}
+                    >
+                      <TableCell>{course.id}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={500}>
+                          {course.title}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{course.instructor}</TableCell>
+                      <TableCell>{course.enrolled.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={course.status}
+                          size="small"
+                          sx={{
+                            backgroundColor:
+                              course.status === "Published"
+                                ? greenColor
+                                : bggreen,
+                            color:
+                              course.status === "Published" ? "#fff" : greenColor,
+                            fontWeight: 500,
+                            borderRadius: 100,
+                            height: 24,
+                            fontSize: "0.75rem",
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {course.lastUpdated}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" spacing={1}>
+                          <Tooltip title="Delete">
+                            <Box 
+                              bgcolor={bgred} 
+                              py={"8px"} 
+                              px={"12px"} 
+                              borderRadius={"6px"} 
+                              sx={{cursor: "pointer"}}
+                              onClick={() => handleDeleteClick(course)}
+                            >
+                              <Image 
+                                src="/images/comp/redbin.png"
+                                alt="delete"
+                                width={1000}
+                                height={1000}
+                                style={{
+                                  width: "20px",
+                                  height: "20px",
+                                }}
+                              />
+                            </Box>
+                          </Tooltip>
+                          <Tooltip title="Edit">
+                            <Box 
+                              bgcolor={bggreen} 
+                              py={"8px"} 
+                              px={"12px"} 
+                              borderRadius={"6px"} 
+                              sx={{cursor: "pointer"}}
+                              onClick={() => handleEditClick(course)}
+                            >
+                              <Image 
+                                src="/images/comp/greenedit.png"
+                                alt="edit"
+                                width={1000}
+                                height={1000}
+                                style={{
+                                  width: "20px",
+                                  height: "20px",
+                                }}
+                              />
+                            </Box>
+                          </Tooltip>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>

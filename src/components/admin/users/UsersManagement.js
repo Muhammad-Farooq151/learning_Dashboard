@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Card,
@@ -37,71 +37,27 @@ import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownR
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { bggreen, bgred, greenColor, redColor } from "@/utils/Colors";
 import Image from "next/image";
+import { getJSON } from "@/utils/http";
 
-const usersData = [
-  {
-    name: "Cindy Metz V",
-    email: "Ebony_Brekke91@yahoo.com",
-    courses: 8,
-    status: "Blocked",
-    joiningDate: "Feb 03 2025",
-    memberSince: "2023-11-15",
-    enrolledCourses: [
-      { name: "React Fundamentals", progress: 75, enrolledDate: "Jan 10, 2024" },
-      { name: "UI/UX Design Principles", progress: 45, enrolledDate: "Dec 15, 2023" },
-      { name: "Python for Data Science", progress: 90, enrolledDate: "Nov 20, 2023" },
-    ],
-  },
-  {
-    name: "Jose Reynolds",
-    email: "Schuyler_Feil34@hotmail.com",
-    courses: 3,
-    status: "Active",
-    joiningDate: "Jan 23 2025",
-    memberSince: "2023-11-15",
-    enrolledCourses: [
-      { name: "React Fundamentals", progress: 75, enrolledDate: "Jan 10, 2024" },
-      { name: "UI/UX Design Principles", progress: 45, enrolledDate: "Dec 15, 2023" },
-    ],
-  },
-  {
-    name: "Katherine Robel PhD",
-    email: "Einar_Bosco35@gmail.com",
-    courses: 6,
-    status: "Active",
-    joiningDate: "May 14 2025",
-    memberSince: "2023-11-15",
-    enrolledCourses: [
-      { name: "React Fundamentals", progress: 75, enrolledDate: "Jan 10, 2024" },
-      { name: "UI/UX Design Principles", progress: 45, enrolledDate: "Dec 15, 2023" },
-      { name: "Python for Data Science", progress: 90, enrolledDate: "Nov 20, 2023" },
-    ],
-  },
-  {
-    name: "Edward Prohaska",
-    email: "Elise_Veum75@gmail.com",
-    courses: 1,
-    status: "Blocked",
-    joiningDate: "May 20 2025",
-    memberSince: "2023-11-15",
-    enrolledCourses: [
-      { name: "React Fundamentals", progress: 75, enrolledDate: "Jan 10, 2024" },
-    ],
-  },
-  {
-    name: "Christina Kihn",
-    email: "Marilyne95@gmail.com",
-    courses: 7,
-    status: "Active",
-    joiningDate: "Aug 28 2025",
-    memberSince: "2023-11-15",
-    enrolledCourses: [
-      { name: "React Fundamentals", progress: 75, enrolledDate: "Jan 10, 2024" },
-      { name: "UI/UX Design Principles", progress: 45, enrolledDate: "Dec 15, 2023" },
-      { name: "Python for Data Science", progress: 90, enrolledDate: "Nov 20, 2023" },
-    ],
-  },
-];
+const formatStatus = (status) => {
+  const s = String(status || "active").toLowerCase();
+  if (s === "blocked") return "Blocked";
+  if (s === "inactive") return "Inactive";
+  return "Active";
+};
+
+const formatJoiningDate = (date) => {
+  if (!date) return "N/A";
+  try {
+    return new Date(date).toLocaleDateString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    });
+  } catch {
+    return "N/A";
+  }
+};
 
 const deleteReasons = [
   "User Request",
@@ -114,12 +70,51 @@ function UsersManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [statusAnchorEl, setStatusAnchorEl] = useState(null);
-  const [users, setUsers] = useState(usersData);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [deleteReason, setDeleteReason] = useState("");
   const [reasonAnchorEl, setReasonAnchorEl] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchUsers = async () => {
+      try {
+        setLoading(true);
+        const response = await getJSON("users");
+        if (!isMounted) return;
+
+        if (response?.success && Array.isArray(response.data)) {
+          const mapped = response.data.map((u) => ({
+            id: u._id,
+            name: u.fullName || "Unnamed",
+            email: u.email || "",
+            courses: 0, // TODO: will be calculated when course enrollments are implemented
+            status: formatStatus(u.status),
+            joiningDate: formatJoiningDate(u.createdAt),
+            memberSince: u.createdAt ? new Date(u.createdAt).toISOString().slice(0, 10) : "N/A",
+            enrolledCourses: [], // TODO: will be filled later
+          }));
+          setUsers(mapped);
+        } else {
+          setUsers([]);
+        }
+      } catch (err) {
+        console.error("Error fetching users:", err);
+        if (isMounted) setUsers([]);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleStatusClick = (event) => {
     setStatusAnchorEl(event.currentTarget);
@@ -335,10 +330,11 @@ function UsersManagement() {
               boxShadow: "none",
               border: "1px solid #E2E8F0",
               borderRadius: 2,
-              overflow: "hidden",
+              overflowX: "auto",
+              overflowY: "hidden",
             }}
           >
-            <Table>
+            <Table sx={{ minWidth: { xs: 800, md: "auto" } }}>
               <TableHead>
                 <TableRow
                   sx={{
@@ -360,7 +356,24 @@ function UsersManagement() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredUsers.map((user, index) => (
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Loading users...
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : filteredUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        No users found
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredUsers.map((user, index) => (
                   <TableRow
                     key={index}
                     sx={{
@@ -447,7 +460,8 @@ function UsersManagement() {
                       </Stack>
                     </TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>
