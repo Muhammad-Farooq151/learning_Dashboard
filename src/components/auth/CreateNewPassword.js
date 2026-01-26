@@ -62,7 +62,7 @@ export default function CreateNewPassword() {
       }
       try {
         setLoading(true);
-        const response = await postJSON("/api/auth/reset-password", {
+        const response = await postJSON("/auth/reset-password", {
           email,
           token,
           password: values.password,

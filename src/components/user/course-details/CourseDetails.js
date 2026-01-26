@@ -24,13 +24,55 @@ import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import PlayCircleFilledRoundedIcon from "@mui/icons-material/PlayCircleFilledRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 function CourseDetails({ course }) {
+  const router = useRouter();
   const [tab, setTab] = useState("overview");
 
-  const faqs = useMemo(() => course?.faq ?? [], [course]);
+  // Map API course data to component structure
+  const mappedCourse = useMemo(() => {
+    if (!course) return null;
 
-  if (!course) {
+    // Calculate total duration from lessons
+    const totalDuration = course.lessons?.reduce((total, lesson) => {
+      return total + (lesson.duration || 0);
+    }, 0) || 0;
+    const hours = Math.floor(totalDuration / 3600);
+    const minutes = Math.floor((totalDuration % 3600) / 60);
+    const duration = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+    return {
+      id: course._id || course.id,
+      title: course.title || 'Untitled Course',
+      description: course.description || '',
+      about: course.description || '', // Use description as about if no separate about field
+      image: course.thumbnailUrl || '/images/default-course.jpg',
+      price: typeof course.price === 'string' ? parseFloat(course.price) || 0 : (course.price || 0),
+      oldPrice: null, // API doesn't have oldPrice
+      duration: duration,
+      students: course.enrolled || 0,
+      rating: 4.8, // Default rating if not in API
+      reviews: "4.8k", // Default reviews
+      level: "Beginner", // Default level
+      category: course.category || 'Uncategorized',
+      skills: course.skills || [],
+      learnPoints: course.lessons?.map(lesson => lesson.learningOutcomes || lesson.lessonName) || [],
+      instructor: {
+        name: course.instructor || 'Unknown Instructor',
+        title: 'Course Instructor',
+        rating: 4.9,
+        students: course.enrolled || 0,
+        courses: 1,
+      },
+      faq: course.faqs || [],
+      lessons: course.lessons || [],
+    };
+  }, [course]);
+
+  const faqs = useMemo(() => mappedCourse?.faq ?? [], [mappedCourse]);
+
+  if (!mappedCourse) {
     return (
       <Box
         sx={{
@@ -55,7 +97,7 @@ function CourseDetails({ course }) {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: "1200px", mx: "auto" }}>
+    <Box sx={{ px: 2, mx: "auto", maxWidth: "1200px" }}>
       <Stack spacing={4}>
         <Stack direction="row" alignItems="center" spacing={2}>
           <IconButton component={Link} href="/user/explore-courses">
@@ -75,11 +117,28 @@ function CourseDetails({ course }) {
         >
           <Grid size={{xs:12,md:7}}>
             <Stack spacing={2}>
-              <Typography variant="h4" fontWeight={700}>
-                {course.title}
+              <Typography 
+                variant="h4" 
+                fontWeight={700}
+                sx={{
+                  wordWrap: "break-word",
+                  overflowWrap: "break-word",
+                  wordBreak: "break-word",
+                }}
+              >
+                {mappedCourse.title}
               </Typography>
-              <Typography variant="body1" color="text.secondary">
-                {course.description}
+              <Typography 
+                variant="body1" 
+                color="text.secondary"
+                sx={{
+                  wordWrap: "break-word",
+                  overflowWrap: "break-word",
+                  wordBreak: "break-word",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {mappedCourse.description}
               </Typography>
 
               <Stack
@@ -90,48 +149,53 @@ function CourseDetails({ course }) {
                 <Stack direction="row" spacing={1} alignItems="center">
                   <AccessTimeRoundedIcon color="primary" />
                   <Typography variant="body2" color="text.primary">
-                    {course.duration}
+                    {mappedCourse.duration}
                   </Typography>
                 </Stack>
 
                 <Stack direction="row" spacing={1} alignItems="center">
                   <PeopleAltRoundedIcon color="primary" />
                   <Typography variant="body2" color="text.primary">
-                    {course.students.toLocaleString()} students
+                    {mappedCourse.students.toLocaleString()} students
                   </Typography>
                 </Stack>
 
                 <Stack direction="row" spacing={1} alignItems="center">
                   <StarRoundedIcon sx={{ color: "#FFB400" }} />
                   <Typography variant="body2" color="text.primary">
-                    {course.rating.toFixed(1)} ({course.reviews ?? "4.8k"} reviews)
+                    {mappedCourse.rating.toFixed(1)} ({mappedCourse.reviews ?? "4.8k"} reviews)
                   </Typography>
                 </Stack>
               </Stack>
 
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <Button size="large" variant="contained" color="success">
+                <Button 
+                  size="large" 
+                  variant="contained" 
+                  color="success"
+                  onClick={() => router.push(`/checkout/${mappedCourse.id}`)}
+                >
                   Enroll Now
                 </Button>
                 <Stack direction="row" spacing={1} alignItems="baseline">
                   <Typography variant="h5" fontWeight={700}>
-                    ${course.price.toFixed(2)}
+                    ${mappedCourse.price.toFixed(2)}
                   </Typography>
-                  {course.oldPrice && (
+                  {mappedCourse.oldPrice && (
                     <Typography
                       variant="body2"
                       color="text.secondary"
                       sx={{ textDecoration: "line-through" }}
                     >
-                      ${course.oldPrice.toFixed(2)}
+                      ${mappedCourse.oldPrice.toFixed(2)}
                     </Typography>
                   )}
                 </Stack>
               </Stack>
 
               <Stack direction="row" spacing={1}>
-                <Chip label={course.level} color="primary" variant="outlined" />
-                <Chip label={course.category} variant="outlined" />
+                <Chip label={mappedCourse.level} color="primary" variant="outlined" />
+                <Chip label={mappedCourse.category} variant="outlined" />
               </Stack>
             </Stack>
           </Grid>
@@ -146,8 +210,8 @@ function CourseDetails({ course }) {
             >
               <Box
                 component="img"
-                src={course.image}
-                alt={course.title}
+                src={mappedCourse.image}
+                alt={mappedCourse.title}
                 sx={{ width: "100%", height: { xs: 240, md: 280 }, objectFit: "cover" }}
               />
             </Box>
@@ -183,8 +247,17 @@ function CourseDetails({ course }) {
                   <Typography variant="h5" fontWeight={600} gutterBottom>
                     About This Course
                   </Typography>
-                  <Typography variant="body1" color="text.secondary">
-                    {course.about}
+                  <Typography 
+                    variant="body1" 
+                    color="text.secondary"
+                    sx={{
+                      wordWrap: "break-word",
+                      overflowWrap: "break-word",
+                      wordBreak: "break-word",
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {mappedCourse.about}
                   </Typography>
                 </Box>
 
@@ -194,34 +267,54 @@ function CourseDetails({ course }) {
                       What You&apos;ll Learn
                     </Typography>
                     <Stack spacing={1}>
-                      {(course.learnPoints ?? []).map((point) => (
-                        <Stack
-                          key={point}
-                          direction="row"
-                          spacing={1.5}
-                          alignItems="flex-start"
-                        >
-                          <PlayCircleFilledRoundedIcon
-                            fontSize="small"
-                            color="primary"
-                            sx={{ mt: 0.4 }}
-                          />
-                          <Typography variant="body2" color="text.primary">
-                            {point}
-                          </Typography>
-                        </Stack>
-                      ))}
+                      {(mappedCourse.learnPoints ?? []).length > 0 ? (
+                        mappedCourse.learnPoints.map((point, index) => (
+                          <Stack
+                            key={index}
+                            direction="row"
+                            spacing={1.5}
+                            alignItems="flex-start"
+                          >
+                            <PlayCircleFilledRoundedIcon
+                              fontSize="small"
+                              color="primary"
+                              sx={{ mt: 0.4 }}
+                            />
+                            <Typography 
+                              variant="body2" 
+                              color="text.primary"
+                              sx={{
+                                wordWrap: "break-word",
+                                overflowWrap: "break-word",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {point}
+                            </Typography>
+                          </Stack>
+                        ))
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Learning outcomes will be added soon.
+                        </Typography>
+                      )}
                     </Stack>
                   </Grid>
 
-                      <Grid size={{xs:12,md:6}}>
+                  <Grid size={{xs:12,md:6}}>
                     <Typography variant="h6" fontWeight={600} gutterBottom>
                       Skills You&apos;ll Gain
                     </Typography>
                     <Stack direction="row" flexWrap="wrap" gap={1}>
-                      {(course.skills ?? []).map((skill) => (
-                        <Chip key={skill} label={skill} variant="outlined" />
-                      ))}
+                      {(mappedCourse.skills ?? []).length > 0 ? (
+                        mappedCourse.skills.map((skill) => (
+                          <Chip key={skill} label={skill} variant="outlined" />
+                        ))
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Skills will be added soon.
+                        </Typography>
+                      )}
                     </Stack>
                   </Grid>
                 </Grid>
@@ -238,27 +331,27 @@ function CourseDetails({ course }) {
                     alignItems={{ xs: "flex-start", sm: "center" }}
                   >
                     <Avatar sx={{ width: 64, height: 64 }}>
-                      {course.instructor?.name?.charAt(0) ?? "I"}
+                      {mappedCourse.instructor?.name?.charAt(0) ?? "I"}
                     </Avatar>
                     <Stack spacing={0.5}>
                       <Typography variant="subtitle1" fontWeight={600}>
-                        {course.instructor?.name}
+                        {mappedCourse.instructor?.name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {course.instructor?.title}
+                        {mappedCourse.instructor?.title}
                       </Typography>
                       <Stack direction="row" spacing={2}>
                         <Stack direction="row" spacing={0.5} alignItems="center">
                           <StarRoundedIcon fontSize="small" sx={{ color: "#FFB400" }} />
                           <Typography variant="body2">
-                            {course.instructor?.rating}
+                            {mappedCourse.instructor?.rating}
                           </Typography>
                         </Stack>
                         <Typography variant="body2" color="text.secondary">
-                          {course.instructor?.students} learners
+                          {mappedCourse.instructor?.students?.toLocaleString()} learners
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {course.instructor?.courses} courses
+                          {mappedCourse.instructor?.courses} courses
                         </Typography>
                       </Stack>
                     </Stack>
@@ -271,16 +364,33 @@ function CourseDetails({ course }) {
                       Frequently Asked Questions
                     </Typography>
                     <Stack spacing={1.5}>
-                      {faqs.map((item) => (
-                        <Accordion key={item.question} disableGutters>
+                      {faqs.map((item, index) => (
+                        <Accordion key={index} disableGutters>
                           <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-                            <Typography variant="subtitle1" fontWeight={600}>
-                              {item.question}
+                            <Typography 
+                              variant="subtitle1" 
+                              fontWeight={600}
+                              sx={{
+                                wordWrap: "break-word",
+                                overflowWrap: "break-word",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {item.question || item.q || 'Question'}
                             </Typography>
                           </AccordionSummary>
                           <AccordionDetails>
-                            <Typography variant="body2" color="text.secondary">
-                              {item.answer}
+                            <Typography 
+                              variant="body2" 
+                              color="text.secondary"
+                              sx={{
+                                wordWrap: "break-word",
+                                overflowWrap: "break-word",
+                                wordBreak: "break-word",
+                                whiteSpace: "pre-wrap",
+                              }}
+                            >
+                              {item.answer || item.a || 'Answer'}
                             </Typography>
                           </AccordionDetails>
                         </Accordion>

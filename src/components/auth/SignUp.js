@@ -66,7 +66,7 @@ export default function SignUp() {
     onSubmit: async (values) => {
       try {
         setLoading(true);
-        await postJSON("/api/auth/signup", {
+        await postJSON("/auth/signup", {
           fullName: values.fullName,
           email: values.email,
           phoneNumber: values.phone,

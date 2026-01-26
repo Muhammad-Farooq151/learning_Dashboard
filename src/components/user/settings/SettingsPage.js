@@ -306,7 +306,7 @@ function SettingsPage() {
         fullName: profileForm.fullName.trim(),
         phoneNumber: profileForm.phoneNumber || "",
       };
-      const response = await putJSON("/api/user/profile", payload);
+      const response = await putJSON("users/profile", payload);
       const updatedProfile = {
         fullName: response.user.fullName || "",
         email: response.user.email || "",
@@ -344,7 +344,7 @@ function SettingsPage() {
       }
       setProfileLoading(true);
       try {
-        const response = await postJSON("/api/user/profile", { userId: storedUser.id });
+        const response = await postJSON("users/profile", { userId: storedUser.id });
         const profile = response?.user || storedUser;
         const snapshot = {
           fullName: profile.fullName || "",

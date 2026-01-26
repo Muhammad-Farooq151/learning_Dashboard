@@ -42,7 +42,7 @@ export default function VerificationEmailSent() {
     }
     try {
       setResending(true);
-      await postJSON("/api/auth/resend-otp", { email });
+      await postJSON("/auth/resend-otp", { email });
       toast.success("Verification link sent again.");
       setCooldown(COOLDOWN_SECS);
     } catch (error) {
