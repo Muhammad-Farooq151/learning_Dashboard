@@ -16,6 +16,7 @@ import {
   Select,
   MenuItem,
   Chip,
+  Autocomplete,
   IconButton,
   Stepper,
   Step,
@@ -58,6 +59,10 @@ const step0ValidationSchema = Yup.object().shape({
     .trim()
     .required("Price is required")
     .matches(/^\d+(\.\d{1,2})?$/, "Please enter a valid price (numbers only, e.g., 800 or 800.50)"),
+  discountPercentage: Yup.number()
+    .typeError("Discount must be a number")
+    .min(0, "Discount cannot be negative")
+    .max(100, "Discount cannot exceed 100%"),
   description: Yup.string()
     .trim()
     .required("Description is required")
@@ -143,10 +148,13 @@ function NewCourse({ courseId = null }) {
     category: "",
     instructor: "",
     price: "",
+    discountPercentage: "",
     skills: [],
     description: "",
   });
   const [skillInput, setSkillInput] = useState("");
+  const [tutors, setTutors] = useState([]);
+  const [tutorsLoading, setTutorsLoading] = useState(false);
   const [faqs, setFaqs] = useState([
     {
       question: "",
@@ -173,6 +181,25 @@ function NewCourse({ courseId = null }) {
   const [lessonErrors, setLessonErrors] = useState({});
   const [thumbnailError, setThumbnailError] = useState("");
 
+  // Fetch tutors
+  useEffect(() => {
+    const fetchTutors = async () => {
+      try {
+        setTutorsLoading(true);
+        const response = await getJSON("tutors");
+        if (response && response.success && Array.isArray(response.data)) {
+          setTutors(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching tutors:", error);
+      } finally {
+        setTutorsLoading(false);
+      }
+    };
+
+    fetchTutors();
+  }, []);
+
   // Load course data when in edit mode
   useEffect(() => {
     const loadCourseData = async () => {
@@ -191,6 +218,7 @@ function NewCourse({ courseId = null }) {
             category: course.category || "",
             instructor: course.instructor || "",
             price: course.price?.toString() || "",
+            discountPercentage: course.discountPercentage?.toString() || "0",
             skills: course.skills || [],
             description: course.description || "",
           });
@@ -257,6 +285,17 @@ function NewCourse({ courseId = null }) {
         [field]: "",
       });
     }
+  };
+
+  // Calculate discounted price
+  const calculateDiscountedPrice = () => {
+    const originalPrice = parseFloat(courseData.price) || 0;
+    const discount = parseFloat(courseData.discountPercentage) || 0;
+    if (originalPrice > 0 && discount > 0) {
+      const discountAmount = (originalPrice * discount) / 100;
+      return (originalPrice - discountAmount).toFixed(2);
+    }
+    return originalPrice.toFixed(2);
   };
 
   const handleAddSkill = () => {
@@ -402,6 +441,7 @@ function NewCourse({ courseId = null }) {
         category: courseData.category,
         instructor: courseData.instructor,
         price: courseData.price,
+        discountPercentage: courseData.discountPercentage ? parseFloat(courseData.discountPercentage) : 0,
         description: courseData.description,
       }, { abortEarly: false });
       setErrors({});
@@ -665,6 +705,7 @@ function NewCourse({ courseId = null }) {
       formData.append('category', courseData.category);
       formData.append('instructor', courseData.instructor);
       formData.append('price', courseData.price);
+      formData.append('discountPercentage', courseData.discountPercentage || '0');
       formData.append('description', courseData.description);
       formData.append('status', 'published');
       
@@ -759,6 +800,7 @@ function NewCourse({ courseId = null }) {
       if (courseData.category) formData.append('category', courseData.category);
       if (courseData.instructor) formData.append('instructor', courseData.instructor);
       if (courseData.price) formData.append('price', courseData.price);
+      if (courseData.discountPercentage) formData.append('discountPercentage', courseData.discountPercentage);
       if (courseData.description) formData.append('description', courseData.description);
       formData.append('status', 'draft');
       
@@ -896,26 +938,56 @@ function NewCourse({ courseId = null }) {
 
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Typography variant="body2" fontWeight={500} mb={1}>
-                    Instructor
+                    Instructor *
                   </Typography>
-                  <TextField
-                    fullWidth
-                    placeholder="eg: Luke Ledner"
-                    value={courseData.instructor}
-                    onChange={handleChange("instructor")}
-                    error={Boolean(errors.instructor)}
-                    helperText={errors.instructor}
+                  <Autocomplete
+                    options={tutors}
+                    getOptionLabel={(option) => option.name || "Unnamed Tutor"}
+                    value={tutors.find(t => t.name === courseData.instructor) || null}
+                    onChange={(event, newValue) => {
+                      setCourseData({
+                        ...courseData,
+                        instructor: newValue ? newValue.name : "",
+                      });
+                      if (errors.instructor) {
+                        setErrors({
+                          ...errors,
+                          instructor: "",
+                        });
+                      }
+                    }}
+                    loading={tutorsLoading}
+                    disabled={tutorsLoading}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder={tutorsLoading ? "Loading tutors..." : "Search and select instructor"}
+                        error={Boolean(errors.instructor)}
+                        helperText={errors.instructor}
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            borderRadius: 2,
+                          },
+                        }}
+                      />
+                    )}
                     sx={{
-                      "& .MuiOutlinedInput-root": {
+                      "& .MuiAutocomplete-inputRoot": {
                         borderRadius: 2,
                       },
+                    }}
+                    noOptionsText="No tutors found"
+                    filterOptions={(options, { inputValue }) => {
+                      return options.filter((option) =>
+                        option.name?.toLowerCase().includes(inputValue.toLowerCase())
+                      );
                     }}
                   />
                 </Grid>
 
-                <Grid size={{ xs: 12, md: 6 }}>
+                <Grid size={{ xs: 12, md: 4 }}>
                   <Typography variant="body2" fontWeight={500} mb={1}>
-                    Price
+                    Original Price *
                   </Typography>
                   <TextField
                     fullWidth
@@ -944,6 +1016,61 @@ function NewCourse({ courseId = null }) {
                         borderRadius: 2,
                       },
                     }}
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Typography variant="body2" fontWeight={500} mb={1}>
+                    Discount Percentage
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    type="text"
+                    placeholder="eg: 20 (max 100%)"
+                    value={courseData.discountPercentage}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Only allow numbers and decimal point, max 100
+                      if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                        const numValue = parseFloat(value) || 0;
+                        if (numValue <= 100 || value === '') {
+                          handleChange("discountPercentage")(e);
+                        }
+                      }
+                    }}
+                    onKeyPress={(e) => {
+                      // Prevent non-numeric characters except decimal point
+                      const char = String.fromCharCode(e.which);
+                      if (!/[0-9.]/.test(char)) {
+                        e.preventDefault();
+                      }
+                    }}
+                    error={Boolean(errors.discountPercentage)}
+                    helperText={errors.discountPercentage || "Enter 0-100"}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Typography variant="body2" fontWeight={500} mb={1}>
+                    Discounted Price
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    type="text"
+                    value={calculateDiscountedPrice()}
+                    disabled
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        backgroundColor: "#f5f5f5",
+                      },
+                    }}
+                    helperText="Calculated automatically"
                   />
                 </Grid>
 
