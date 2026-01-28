@@ -107,13 +107,29 @@ function CheckoutForm({ course, onSuccess }) {
   };
 
   const calculateTotal = () => {
+    if (!course) return { original: 0, discount: 0, discountPercentage: 0, tax: 0, total: 0 };
+    
     const originalPrice = parseFloat(course.price) || 0;
-    const discount = originalPrice * 0.79; // 79% discount
-    const tax = (originalPrice - discount) * 0.08; // 8% tax
-    const total = originalPrice - discount + tax;
+    const discountPercentage = course.discountPercentage || 0;
+    
+    // Calculate discount amount
+    const discountAmount = discountPercentage > 0 
+      ? (originalPrice * discountPercentage) / 100 
+      : 0;
+    
+    // Calculate price after discount
+    const priceAfterDiscount = originalPrice - discountAmount;
+    
+    // Calculate tax (8% on discounted price)
+    const tax = priceAfterDiscount * 0.08;
+    
+    // Total = discounted price + tax
+    const total = priceAfterDiscount + tax;
+    
     return {
       original: originalPrice,
-      discount: discount,
+      discount: discountAmount,
+      discountPercentage: discountPercentage,
       tax: tax,
       total: total,
     };
@@ -356,7 +372,7 @@ function CheckoutForm({ course, onSuccess }) {
                 </Stack>
               </Box>
 
-              <Grid container spacing={2}>
+              {/* <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
@@ -461,7 +477,7 @@ function CheckoutForm({ course, onSuccess }) {
                     Forgot password?
                   </Typography>
                 </Stack>
-              </Box>
+              </Box> */}
             </Stack>
           )}
         </Box>
@@ -555,14 +571,29 @@ function CheckoutPage({ courseId }) {
   }, [courseId]);
 
   const calculateTotal = () => {
-    if (!course) return { original: 0, discount: 0, tax: 0, total: 0 };
+    if (!course) return { original: 0, discount: 0, discountPercentage: 0, tax: 0, total: 0 };
+    
     const originalPrice = parseFloat(course.price) || 0;
-    const discount = originalPrice * 0.79; // 79% discount
-    const tax = (originalPrice - discount) * 0.08; // 8% tax
-    const total = originalPrice - discount + tax;
+    const discountPercentage = course.discountPercentage || 0;
+    
+    // Calculate discount amount
+    const discountAmount = discountPercentage > 0 
+      ? (originalPrice * discountPercentage) / 100 
+      : 0;
+    
+    // Calculate price after discount
+    const priceAfterDiscount = originalPrice - discountAmount;
+    
+    // Calculate tax (8% on discounted price)
+    const tax = priceAfterDiscount * 0.08;
+    
+    // Total = discounted price + tax
+    const total = priceAfterDiscount + tax;
+    
     return {
       original: originalPrice,
-      discount: discount,
+      discount: discountAmount,
+      discountPercentage: discountPercentage,
       tax: tax,
       total: total,
     };
@@ -685,16 +716,37 @@ function CheckoutPage({ courseId }) {
                     <Typography variant="body2" color="text.secondary">
                       Original Price (1 Course)
                     </Typography>
-                    <Typography variant="body2">${pricing.original.toFixed(2)}</Typography>
-                  </Stack>
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2" color="text.secondary">
-                      Discount (79% Off)
+                    <Typography 
+                      variant="body2"
+                      sx={pricing.discountPercentage > 0 ? { 
+                        textDecoration: "line-through",
+                        textDecorationColor: "#64748B",
+                        color: "text.secondary"
+                      } : {}}
+                    >
+                      ${pricing.original.toFixed(2)}
                     </Typography>
-                    <Typography variant="body2" color="success.main">
-                      -${pricing.discount.toFixed(2)}
-                    </Typography>
                   </Stack>
+                  {pricing.discountPercentage > 0 && (
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary">
+                        Discount ({pricing.discountPercentage}% Off)
+                      </Typography>
+                      <Typography variant="body2" color="success.main">
+                        -${pricing.discount.toFixed(2)}
+                      </Typography>
+                    </Stack>
+                  )}
+                  {pricing.discountPercentage > 0 && (
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary">
+                        Price After Discount
+                      </Typography>
+                      <Typography variant="body2" color="success.main" fontWeight={600}>
+                        ${(pricing.original - pricing.discount).toFixed(2)}
+                      </Typography>
+                    </Stack>
+                  )}
                   <Stack direction="row" justifyContent="space-between">
                     <Typography variant="body2" color="text.secondary">
                       Tax

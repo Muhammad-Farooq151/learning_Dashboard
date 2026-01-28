@@ -71,18 +71,34 @@ function ExploreCourses() {
           const publishedCourses = response.data.filter(course => course.status === 'published');
           
           // Map API response to match the component structure
-          const mappedCourses = publishedCourses.map((course) => ({
-            id: course._id || course.id,
-            title: course.title || 'Untitled Course',
-            instructor: course.instructor || 'Unknown Instructor',
-            category: course.category || 'Uncategorized',
-            description: course.description || '',
-            thumbnailUrl: course.thumbnailUrl || '/images/default-course.jpg',
-            enrolled: course.enrolled || 0,
-            price: course.price || 0,
-            status: course.status || 'draft',
-            lessons: course.lessons?.length || 0,
-          }));
+          const mappedCourses = publishedCourses.map((course) => {
+            // Calculate price with discount
+            const originalPrice = parseFloat(course.price) || 0;
+            const discountPercentage = course.discountPercentage || 0;
+            let finalPrice = originalPrice;
+            let hasDiscount = false;
+            
+            if (discountPercentage > 0 && originalPrice > 0) {
+              const discountAmount = (originalPrice * discountPercentage) / 100;
+              finalPrice = originalPrice - discountAmount;
+              hasDiscount = true;
+            }
+
+            return {
+              id: course._id || course.id,
+              title: course.title || 'Untitled Course',
+              instructor: course.instructor || 'Unknown Instructor',
+              category: course.category || 'Uncategorized',
+              description: course.description || '',
+              thumbnailUrl: course.thumbnailUrl || '/images/default-course.jpg',
+              enrolled: course.enrolled || 0,
+              price: finalPrice, // Final price after discount
+              originalPrice: hasDiscount ? originalPrice : null, // Original price if discount exists
+              discountPercentage: discountPercentage,
+              status: course.status || 'draft',
+              lessons: course.lessons?.length || 0,
+            };
+          });
           
           setCourses(mappedCourses);
           
@@ -492,10 +508,28 @@ function ExploreCourses() {
                             {course.enrolled?.toLocaleString() || 0}
                           </Typography>
                         </Grid>
-                        <Grid size={{ xs: 12, md: 4 }} display="flex" alignItems="center" gap={1}>
-                          <Typography variant="body2" color="text.primary" fontWeight={600}>
-                            ${course.price || 0}
-                          </Typography>
+                        <Grid size={{ xs: 12, md: 4 }} display="flex" alignItems="center" gap={0.5} flexWrap="wrap">
+                          {course.originalPrice ? (
+                            <>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ 
+                                  textDecoration: "line-through",
+                                  textDecorationColor: "#64748B",
+                                }}
+                              >
+                                ${course.originalPrice.toFixed(2)}
+                              </Typography>
+                              <Typography variant="body2" color="success.main" fontWeight={600}>
+                                ${course.price.toFixed(2)}
+                              </Typography>
+                            </>
+                          ) : (
+                            <Typography variant="body2" color="text.primary" fontWeight={600}>
+                              ${course.price.toFixed(2)}
+                            </Typography>
+                          )}
                         </Grid>
                         <Grid size={{ xs: 12, md: 4 }} display="flex" alignItems="center" gap={1}>
                           <Typography variant="body2" color="text.secondary">

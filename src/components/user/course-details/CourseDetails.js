@@ -25,6 +25,8 @@ import PlayCircleFilledRoundedIcon from "@mui/icons-material/PlayCircleFilledRou
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import CourseReviews from "./CourseReviews";
+import CourseCurriculum from "./CourseCurriculum";
 
 function CourseDetails({ course }) {
   const router = useRouter();
@@ -42,14 +44,27 @@ function CourseDetails({ course }) {
     const minutes = Math.floor((totalDuration % 3600) / 60);
     const duration = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 
+    // Calculate price with discount
+    const originalPrice = typeof course.price === 'string' ? parseFloat(course.price) || 0 : (course.price || 0);
+    const discountPercentage = course.discountPercentage || 0;
+    let finalPrice = originalPrice;
+    let hasDiscount = false;
+    
+    if (discountPercentage > 0 && originalPrice > 0) {
+      const discountAmount = (originalPrice * discountPercentage) / 100;
+      finalPrice = originalPrice - discountAmount;
+      hasDiscount = true;
+    }
+
     return {
       id: course._id || course.id,
       title: course.title || 'Untitled Course',
       description: course.description || '',
       about: course.description || '', // Use description as about if no separate about field
       image: course.thumbnailUrl || '/images/default-course.jpg',
-      price: typeof course.price === 'string' ? parseFloat(course.price) || 0 : (course.price || 0),
-      oldPrice: null, // API doesn't have oldPrice
+      price: finalPrice, // Final price after discount
+      originalPrice: hasDiscount ? originalPrice : null, // Original price if discount exists
+      discountPercentage: discountPercentage,
       duration: duration,
       students: course.enrolled || 0,
       rating: 4.8, // Default rating if not in API
@@ -177,17 +192,38 @@ function CourseDetails({ course }) {
                 >
                   Enroll Now
                 </Button>
-                <Stack direction="row" spacing={1} alignItems="baseline">
-                  <Typography variant="h5" fontWeight={700}>
-                    ${mappedCourse.price.toFixed(2)}
-                  </Typography>
-                  {mappedCourse.oldPrice && (
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ textDecoration: "line-through" }}
-                    >
-                      ${mappedCourse.oldPrice.toFixed(2)}
+                <Stack direction="row" spacing={1} alignItems="baseline" flexWrap="wrap">
+                  {mappedCourse.originalPrice ? (
+                    <>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ 
+                          textDecoration: "line-through",
+                          textDecorationColor: "#64748B",
+                        }}
+                      >
+                        ${mappedCourse.originalPrice.toFixed(2)}
+                      </Typography>
+                      <Typography variant="h5" fontWeight={700} color="success.main">
+                        ${mappedCourse.price.toFixed(2)}
+                      </Typography>
+                      {mappedCourse.discountPercentage > 0 && (
+                        <Chip 
+                          label={`${mappedCourse.discountPercentage}% OFF`}
+                          size="small"
+                          color="success"
+                          sx={{ 
+                            fontWeight: 600,
+                            height: 24,
+                            fontSize: "0.75rem",
+                          }}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <Typography variant="h5" fontWeight={700}>
+                      ${mappedCourse.price.toFixed(2)}
                     </Typography>
                   )}
                 </Stack>
@@ -234,8 +270,8 @@ function CourseDetails({ course }) {
             sx={{ px: { xs: 2, md: 3 }, pt: 2 }}
           >
             <Tab label="Overview" value="overview" />
-            <Tab label="Courses" value="courses" disabled />
-            <Tab label="Reviews" value="reviews" disabled />
+            <Tab label="Courses" value="courses" />
+            <Tab label="Reviews" value="reviews" />
           </Tabs>
 
           <Divider />
@@ -400,6 +436,14 @@ function CourseDetails({ course }) {
                 )}
               </Stack>
             </Box>
+          )}
+
+          {tab === "courses" && (
+            <CourseCurriculum course={mappedCourse} />
+          )}
+
+          {tab === "reviews" && (
+            <CourseReviews course={mappedCourse} />
           )}
         </Box>
       </Stack>
