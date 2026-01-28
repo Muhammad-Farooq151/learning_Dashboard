@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Chip,
@@ -12,43 +12,149 @@ import {
   Stack,
   TextField,
   Typography,
+  Button,
+  Menu,
+  Skeleton,
 } from "@mui/material";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
-import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
-import PlayCircleFilledRoundedIcon from "@mui/icons-material/PlayCircleFilledRounded";
 import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import Link from "next/link";
-import { courses } from "@/data/courses";
-
-const levelFilters = ["All Level", "Beginner", "Intermediate", "Advanced"];
-const categoryFilters = [
-  "All Categories",
-  "Programming",
-  "Data Science",
-  "AI/ML",
-  "Design",
-  "Data",
-];
+import { getJSON } from "@/utils/http";
+import { greenColor, bggreen } from "@/utils/Colors";
 
 function ExploreCourses() {
   const [search, setSearch] = useState("");
-  const [level, setLevel] = useState(levelFilters[0]);
-  const [category, setCategory] = useState(categoryFilters[0]);
+  const [statusFilter, setStatusFilter] = useState("All Status");
+  const [instructorFilter, setInstructorFilter] = useState("All Instructors");
+  const [statusAnchorEl, setStatusAnchorEl] = useState(null);
+  const [instructorAnchorEl, setInstructorAnchorEl] = useState(null);
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [instructors, setInstructors] = useState([]);
+
+  // Fetch courses from API
+  useEffect(() => {
+    let isMounted = true;
+    
+    const fetchCourses = async () => {
+      try {
+        setLoading(true);
+        const response = await getJSON('courses').catch((err) => {
+          if (isMounted) {
+            if (err.response) {
+              console.error('Error fetching courses:', {
+                status: err.response.status,
+                statusText: err.response.statusText,
+                data: err.response.data,
+                message: err.message
+              });
+            } else if (err.request) {
+              console.error('Error fetching courses - No response from server:', {
+                message: err.message,
+              });
+            } else {
+              console.error('Error fetching courses:', err.message || err);
+            }
+            setCourses([]);
+            setInstructors([]);
+            setLoading(false);
+          }
+          return null;
+        });
+
+        if (!isMounted) return;
+
+        if (response && response.success && response.data && Array.isArray(response.data)) {
+          // Filter only published courses for user view
+          const publishedCourses = response.data.filter(course => course.status === 'published');
+          
+          // Map API response to match the component structure
+          const mappedCourses = publishedCourses.map((course) => ({
+            id: course._id || course.id,
+            title: course.title || 'Untitled Course',
+            instructor: course.instructor || 'Unknown Instructor',
+            category: course.category || 'Uncategorized',
+            description: course.description || '',
+            thumbnailUrl: course.thumbnailUrl || '/images/default-course.jpg',
+            enrolled: course.enrolled || 0,
+            price: course.price || 0,
+            status: course.status || 'draft',
+            lessons: course.lessons?.length || 0,
+          }));
+          
+          setCourses(mappedCourses);
+          
+          // Extract unique instructors
+          const uniqueInstructors = [...new Set(mappedCourses.map(c => c.instructor).filter(Boolean))];
+          setInstructors(uniqueInstructors);
+        } else {
+          setCourses([]);
+          setInstructors([]);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error('Error fetching courses:', error.message || error);
+          setCourses([]);
+          setInstructors([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchCourses();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleStatusClick = (event) => {
+    setStatusAnchorEl(event.currentTarget);
+  };
+
+  const handleStatusClose = () => {
+    setStatusAnchorEl(null);
+  };
+
+  const handleInstructorClick = (event) => {
+    setInstructorAnchorEl(event.currentTarget);
+  };
+
+  const handleInstructorClose = () => {
+    setInstructorAnchorEl(null);
+  };
+
+  const handleStatusSelect = (status) => {
+    setStatusFilter(status);
+    handleStatusClose();
+  };
+
+  const handleInstructorSelect = (instructor) => {
+    setInstructorFilter(instructor);
+    handleInstructorClose();
+  };
 
   const filteredCourses = useMemo(() => {
     return courses.filter((course) => {
       const matchesSearch =
         course.title.toLowerCase().includes(search.toLowerCase()) ||
-        course.description.toLowerCase().includes(search.toLowerCase());
-      const matchesLevel =
-        level === "All Level" || course.level === level;
-      const matchesCategory =
-        category === "All Categories" || course.category === category;
+        course.instructor.toLowerCase().includes(search.toLowerCase()) ||
+        (course.description && course.description.toLowerCase().includes(search.toLowerCase()));
+      const matchesStatus =
+        statusFilter === "All Status" ||
+        (statusFilter === "Published" && course.status === "published");
+      const matchesInstructor =
+        instructorFilter === "All Instructors" ||
+        course.instructor === instructorFilter;
 
-      return matchesSearch && matchesLevel && matchesCategory;
+      return matchesSearch && matchesStatus && matchesInstructor;
     });
-  }, [search, level, category]);
+  }, [search, statusFilter, instructorFilter, courses]);
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: "1200px", mx: "auto" }}>
@@ -65,66 +171,201 @@ function ExploreCourses() {
         <Stack
           direction={{ xs: "column", md: "row" }}
           spacing={2}
+          mb={3}
           alignItems={{ xs: "stretch", md: "center" }}
+          justifyContent="space-between"
         >
           <TextField
-            placeholder="Search here"
-            size="small"
+            placeholder="Search"
             fullWidth
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                borderRadius: 2,
+                height: "56px",
+                bgcolor: "rgba(244, 244, 244, 1)",
+                border: "none",
+                "& fieldset": {
+                  border: "none",
+                },
+                "&:hover fieldset": {
+                  border: "none",
+                },
+                "&.Mui-focused fieldset": {
+                  border: "none",
+                },
+              },
+            }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchRoundedIcon color="action" />
+                  <SearchRoundedIcon sx={{ color: "black" }} />
                 </InputAdornment>
               ),
             }}
           />
 
           <Stack
-            direction={{ xs: "column", sm: "row" }}
+            direction="row"
             spacing={2}
-            width={{ xs: "100%", md: "auto" }}
+            sx={{ width: { xs: "100%", md: "auto" }, position: "relative" }}
           >
-            <FormControl size="small" fullWidth>
-              <Select
-                value={level}
-                onChange={(event) => setLevel(event.target.value)}
-                displayEmpty
+            <Box sx={{ position: "relative" }}>
+              <Button
+                variant="outlined"
+                onClick={handleStatusClick}
+                endIcon={<KeyboardArrowDownRoundedIcon />}
+                sx={{
+                  border: "none",
+                  height: "56px",
+                  bgcolor: "rgba(244, 244, 244, 1)",
+                  color: "#64748B",
+                  textTransform: "none",
+                  minWidth: 150,
+                  borderRadius: 2,
+                  "&:hover": {
+                    border: "none",
+                    backgroundColor: "rgba(244, 244, 244, 1)",
+                  },
+                }}
               >
-                {levelFilters.map((option) => (
-                  <MenuItem key={option} value={option}>
-                    {option}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                {statusFilter}
+              </Button>
 
-            <FormControl size="small" fullWidth>
-              <Select
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                displayEmpty
+              <Menu
+                anchorEl={statusAnchorEl}
+                open={Boolean(statusAnchorEl)}
+                onClose={handleStatusClose}
+                anchorOrigin={{
+                  vertical: "bottom",
+                  horizontal: "left",
+                }}
+                transformOrigin={{
+                  vertical: "top",
+                  horizontal: "left",
+                }}
+                PaperProps={{
+                  sx: {
+                    mt: 0.5,
+                    minWidth: 150,
+                    boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+                    borderRadius: 2,
+                    border: "1px solid #E2E8F0",
+                  },
+                }}
+                MenuListProps={{
+                  sx: { py: 0.5 },
+                }}
               >
-                {categoryFilters.map((option) => (
-                  <MenuItem key={option} value={option}>
-                    {option}
+                <MenuItem
+                  onClick={() => handleStatusSelect("All Status")}
+                  sx={{
+                    backgroundColor:
+                      statusFilter === "All Status" ? "#F1F5F9" : "transparent",
+                    "&:hover": { backgroundColor: "#F8FAFC" },
+                  }}
+                >
+                  All Status
+                </MenuItem>
+                <MenuItem
+                  onClick={() => handleStatusSelect("Published")}
+                  sx={{
+                    backgroundColor:
+                      statusFilter === "Published" ? "#F1F5F9" : "transparent",
+                    "&:hover": { backgroundColor: "#F8FAFC" },
+                  }}
+                >
+                  Published
+                </MenuItem>
+              </Menu>
+            </Box>
+
+            <Box sx={{ position: "relative" }}>
+              <Button
+                variant="outlined"
+                onClick={handleInstructorClick}
+                endIcon={<KeyboardArrowDownRoundedIcon />}
+                sx={{
+                  border: "none",
+                  height: "56px",
+                  bgcolor: "rgba(244, 244, 244, 1)",
+                  color: "#64748B",
+                  textTransform: "none",
+                  minWidth: 150,
+                  borderRadius: 2,
+                  "&:hover": {
+                    border: "none",
+                    backgroundColor: "rgba(244, 244, 244, 1)",
+                  },
+                }}
+              >
+                {instructorFilter}
+              </Button>
+
+              <Menu
+                anchorEl={instructorAnchorEl}
+                open={Boolean(instructorAnchorEl)}
+                onClose={handleInstructorClose}
+                anchorOrigin={{
+                  vertical: "bottom",
+                  horizontal: "left",
+                }}
+                transformOrigin={{
+                  vertical: "top",
+                  horizontal: "left",
+                }}
+                PaperProps={{
+                  sx: {
+                    mt: 0.5,
+                    minWidth: 150,
+                    boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+                    borderRadius: 2,
+                    maxHeight: 300,
+                    border: "1px solid #E2E8F0",
+                  },
+                }}
+                MenuListProps={{
+                  sx: { py: 0.5 },
+                }}
+              >
+                <MenuItem
+                  onClick={() => handleInstructorSelect("All Instructors")}
+                  sx={{
+                    backgroundColor:
+                      instructorFilter === "All Instructors"
+                        ? "#F1F5F9"
+                        : "transparent",
+                    "&:hover": { backgroundColor: "#F8FAFC" },
+                  }}
+                >
+                  All Instructors
+                </MenuItem>
+                {instructors.map((instructor) => (
+                  <MenuItem
+                    key={instructor}
+                    onClick={() => handleInstructorSelect(instructor)}
+                    sx={{
+                      backgroundColor:
+                        instructorFilter === instructor
+                          ? "#F1F5F9"
+                          : "transparent",
+                      "&:hover": { backgroundColor: "#F8FAFC" },
+                    }}
+                  >
+                    {instructor}
                   </MenuItem>
                 ))}
-              </Select>
-            </FormControl>
+              </Menu>
+            </Box>
           </Stack>
         </Stack>
 
         <Grid container spacing={3}>
-          {filteredCourses.map((course) => (
-            <Grid key={course.id} size={{xs:12,sm:6,lg:4}}>
-              <Box
-                component={Link}
-                href={`/user/explore-courses/${course.id}`}
-                sx={{ textDecoration: "none" }}
-              >
+          {loading ? (
+            // Skeleton loading cards
+            Array.from({ length: 6 }).map((_, index) => (
+              <Grid key={index} size={{ xs: 12, sm: 6, lg: 4 }}>
                 <Box
                   sx={{
                     bgcolor: "#ffffff",
@@ -135,121 +376,27 @@ function ExploreCourses() {
                     height: "100%",
                     display: "flex",
                     flexDirection: "column",
-                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                    "&:hover": {
-                      transform: "translateY(-4px)",
-                      boxShadow:
-                        "0px 16px 40px rgba(15, 23, 42, 0.12), 0px 0px 1px rgba(15, 23, 42, 0.16)",
-                    },
                   }}
                 >
-                  <Box
-                    component="img"
-                    src={course.image}
-                    alt={course.title}
-                    sx={{
-                      width: "100%",
-                      height: 200,
-                      objectFit: "cover",
-                    }}
-                  />
-
+                  <Skeleton variant="rectangular" width="100%" height={200} />
                   <Box sx={{ p: 3, display: "flex", flexDirection: "column", flex: 1 }}>
                     <Stack direction="row" spacing={1} mb={1}>
-                      <Chip
-                        label={course.level}
-                        size="small"
-                        sx={{ fontWeight: 600, textTransform: "uppercase" }}
-                      />
-                      <Chip label={course.category} size="small" variant="outlined" />
+                      <Skeleton variant="rectangular" width={80} height={24} sx={{ borderRadius: 1 }} />
+                      <Skeleton variant="rectangular" width={100} height={24} sx={{ borderRadius: 1 }} />
                     </Stack>
-
-                    <Typography variant="h6" fontWeight={600} gutterBottom>
-                      {course.title}
-                    </Typography>
-
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ mb: 3 }}
-                    >
-                      {course.description}
-                    </Typography>
-
-<Grid container spacing={2} justifyContent="space-between">
-<Grid size={{xs:12,md:3}}>
-                      <Typography variant="body2" color="text.primary">
-                        {course.duration}
-                      </Typography>
-                    </Grid>
-          |
-                    {/* <Grid size={{xs:12,md:3}} display="flex" alignItems="center" gap={1}>
-                      <Typography variant="body2" color="text.primary">
-                        {course.lessons} 
-                      </Typography>
-                      <Typography variant="body2" color="text.primary">
-                      lessons
-                      </Typography>
-                    </Grid> */}
-                    <Grid size={{xs:12,md:3}} display="flex" alignItems="center" gap={1}>
-                    <PeopleAltRoundedIcon fontSize="small" color="action" />
-                      <Typography variant="body2" color="text.secondary">
-                        {course.students.toLocaleString()}
-                      </Typography>
-                    </Grid>
-                    |
-                    <Grid size={{xs:12,md:3}} display="flex" alignItems="center" gap={1}>
-                    <StarRoundedIcon fontSize="small" sx={{ color: "#FFB400" }} />
-                      <Typography variant="body2" color="text.secondary">
-                        {course.rating.toFixed(1)}
-                      </Typography>
-                    </Grid>
-    </Grid>                  
-      {/* <Stack direction="row" spacing={2} justifyContent="space-between">
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <AccessTimeRoundedIcon fontSize="small" color="primary" />
-                        <Typography variant="body2" color="text.primary">
-                          {course.duration}
-                        </Typography>
-                      </Stack>
-
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <PlayCircleFilledRoundedIcon fontSize="small" color="primary" />
-                        <Typography variant="body2" color="text.primary">
-                          {course.lessons} lessons
-                        </Typography>
-                      </Stack>
+                    <Skeleton variant="text" width="80%" height={32} sx={{ mb: 1 }} />
+                    <Skeleton variant="text" width="100%" height={20} sx={{ mb: 0.5 }} />
+                    <Skeleton variant="text" width="90%" height={20} sx={{ mb: 3 }} />
+                    <Stack direction="row" spacing={2} justifyContent="space-between">
+                      <Skeleton variant="text" width={60} height={20} />
+                      <Skeleton variant="text" width={60} height={20} />
                     </Stack>
-
-                    <Stack
-                      direction="row"
-                      spacing={2}
-                      justifyContent="space-between"
-                      mt={2}
-                    >
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <PeopleAltRoundedIcon fontSize="small" color="action" />
-                        <Typography variant="body2" color="text.secondary">
-                          {course.students.toLocaleString()}
-                        </Typography>
-                      </Stack>
-
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <StarRoundedIcon fontSize="small" sx={{ color: "#FFB400" }} />
-                        <Typography variant="body2" color="text.secondary">
-                          {course.rating.toFixed(1)}
-                        </Typography>
-                      </Stack>
-                    </Stack> */}
-                    
                   </Box>
                 </Box>
-              </Box>
-            </Grid>
-          ))}
-
-          {!filteredCourses.length && (
-            <Grid size={{xs:12}}>
+              </Grid>
+            ))
+          ) : filteredCourses.length === 0 ? (
+            <Grid size={{ xs: 12 }}>
               <Box
                 sx={{
                   borderRadius: 3,
@@ -261,13 +408,106 @@ function ExploreCourses() {
                 }}
               >
                 <Typography variant="h6" gutterBottom>
-                  No courses found
+                  {courses.length === 0 ? "No courses available" : "No courses found"}
                 </Typography>
                 <Typography variant="body2">
-                  Try adjusting your search or filter criteria.
+                  {courses.length === 0 
+                    ? "There are no published courses available at the moment." 
+                    : "Try adjusting your search or filter criteria."}
                 </Typography>
               </Box>
             </Grid>
+          ) : (
+            filteredCourses.map((course) => (
+              <Grid key={course.id} size={{ xs: 12, sm: 6, lg: 4 }}>
+                <Box
+                  component={Link}
+                  href={`/user/explore-courses/${course.id}`}
+                  sx={{ textDecoration: "none" }}
+                >
+                  <Box
+                    sx={{
+                      bgcolor: "#ffffff",
+                      borderRadius: 3,
+                      overflow: "hidden",
+                      boxShadow:
+                        "0px 12px 30px rgba(15, 23, 42, 0.08), 0px 0px 1px rgba(15, 23, 42, 0.08)",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                      "&:hover": {
+                        transform: "translateY(-4px)",
+                        boxShadow:
+                          "0px 16px 40px rgba(15, 23, 42, 0.12), 0px 0px 1px rgba(15, 23, 42, 0.16)",
+                      },
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={course.thumbnailUrl || '/images/default-course.jpg'}
+                      alt={course.title}
+                      sx={{
+                        width: "100%",
+                        height: 200,
+                        objectFit: "cover",
+                      }}
+                    />
+
+                    <Box sx={{ p: 3, display: "flex", flexDirection: "column", flex: 1 }}>
+                      <Stack direction="row" spacing={1} mb={1}>
+                        <Chip
+                          label={course.status === 'published' ? 'Published' : 'Draft'}
+                          size="small"
+                          sx={{ 
+                            fontWeight: 600, 
+                            textTransform: "uppercase",
+                            backgroundColor: course.status === 'published' ? greenColor : bggreen,
+                            color: course.status === 'published' ? '#fff' : greenColor,
+                          }}
+                        />
+                        <Chip 
+                          label={course.category} 
+                          size="small" 
+                          variant="outlined" 
+                        />
+                      </Stack>
+
+                      <Typography variant="h6" fontWeight={600} gutterBottom>
+                        {course.title}
+                      </Typography>
+
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mb: 3 }}
+                      >
+                        {course.description?.substring(0, 100) || 'No description available'}...
+                      </Typography>
+
+                      <Grid container spacing={2} justifyContent="space-between">
+                        <Grid size={{ xs: 12, md: 4 }} display="flex" alignItems="center" gap={1}>
+                          <PeopleAltRoundedIcon fontSize="small" color="action" />
+                          <Typography variant="body2" color="text.secondary">
+                            {course.enrolled?.toLocaleString() || 0}
+                          </Typography>
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }} display="flex" alignItems="center" gap={1}>
+                          <Typography variant="body2" color="text.primary" fontWeight={600}>
+                            ${course.price || 0}
+                          </Typography>
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }} display="flex" alignItems="center" gap={1}>
+                          <Typography variant="body2" color="text.secondary">
+                            {course.lessons || 0} lessons
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  </Box>
+                </Box>
+              </Grid>
+            ))
           )}
         </Grid>
       </Stack>

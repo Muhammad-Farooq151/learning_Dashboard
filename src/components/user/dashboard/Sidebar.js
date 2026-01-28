@@ -168,7 +168,7 @@ export default function Sidebar() {
       <Box
         sx={{
           // width: 240,
-          minWidth: 240,
+          // minWidth: 240,
           height: "100dvh",
           // borderRight: "1px solid",
           borderColor: "divider",
@@ -250,14 +250,14 @@ export default function Sidebar() {
           sx={{
             position: "fixed",
             inset: 0,
-            zIndex: 9999,
+            zIndex: 1111111119999,
             display: "grid",
             placeItems: "center",
             backgroundColor: "rgba(255,255,255,0.75)",
             backdropFilter: "blur(1.5px)",
           }}
         >
-          <ClipLoader size={60} color={greenColor} />
+          <ClipLoader size={60}  zIndex={1111111119999} color={greenColor} />
         </Box>
       )}
     </>

@@ -85,9 +85,10 @@ function UsersManagement() {
       try {
         setLoading(true);
         const response = await getJSON("users");
+
         if (!isMounted) return;
 
-        if (response?.success && Array.isArray(response.data)) {
+        if (response && response.success && Array.isArray(response.data)) {
           const mapped = response.data.map((u) => ({
             id: u._id,
             name: u.fullName || "Unnamed",
@@ -102,11 +103,21 @@ function UsersManagement() {
         } else {
           setUsers([]);
         }
-      } catch (err) {
-        console.error("Error fetching users:", err);
-        if (isMounted) setUsers([]);
+      } catch (error) {
+        // Handle errors gracefully
+        if (isMounted) {
+          console.error('Error fetching users:', {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status,
+            url: error.config?.url
+          });
+          setUsers([]);
+        }
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 

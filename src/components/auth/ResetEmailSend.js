@@ -42,7 +42,7 @@ export default function ResetEmailSend() {
     }
     try {
       setResending(true);
-      await postJSON("/api/auth/forgot-password", { email });
+      await postJSON("/auth/forgot-password", { email });
       toast.success("Reset link sent again.");
       setCooldown(COOLDOWN_SECS);
     } catch (e) {

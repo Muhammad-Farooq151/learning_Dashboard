@@ -45,7 +45,7 @@ export default function VerifyEmailStatus() {
       }
       try {
         setStatus(STATUS.LOADING);
-        const response = await postJSON("/api/auth/verify-email", { email, token });
+        const response = await postJSON("/auth/verify-email", { email, token });
         setStatus(STATUS.SUCCESS);
         setMessage(response.message || "Your account is verified. You can now sign in to LearningHub.");
         

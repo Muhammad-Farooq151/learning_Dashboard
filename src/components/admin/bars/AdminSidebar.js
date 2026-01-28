@@ -168,7 +168,7 @@ export default function AdminSidebar() {
       <Box
         sx={{
           // width: 240,
-          minWidth: 240,
+          // minWidth: 240,
           height: "100dvh",
           // borderRight: "1px solid",
           borderColor: "divider",

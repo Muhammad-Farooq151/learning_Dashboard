@@ -44,7 +44,7 @@ export default function LoginPage() {
     onSubmit: async (values) => {
       try {
         setLoading(true);
-        const response = await postJSON("/api/auth/login", values);
+        const response = await postJSON("/auth/login", values);
         
         if (response.success && response.data) {
           persistAuthToken(response.data.token, response.data.user, rememberMe);

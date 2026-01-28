@@ -40,10 +40,10 @@ export default function UserLayout({ children }) {
 
   return (
     <Box display={"flex"}>
-      <Box width={"18%"} position={"fixed"}>
+      <Box width={["0%","0%","18%"]} position={"fixed"} sx={{display:["none","none","block"]}}>
         <Sidebar />
       </Box>
-      <Box width={"100%"} ml={"18%"}>
+      <Box width={"82%"} ml={["0%","0%","18%"]} >
         {/* Navbar */}
         <Navbar/>
         {children}

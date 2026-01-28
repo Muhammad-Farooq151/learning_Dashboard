@@ -41,7 +41,7 @@ export default function ForgetPassword() {
     onSubmit: async (values) => {
       try {
         setLoading(true);
-        const response = await postJSON("/api/auth/forgot-password", { email: values.email });
+        const response = await postJSON("/auth/forgot-password", { email: values.email });
         
         await Swal.fire({
           icon: 'success',
