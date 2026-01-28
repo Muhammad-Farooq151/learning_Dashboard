@@ -1,36 +1,75 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import CourseLearningPage from "@/components/user/myLearnings/CourseLearningPage";
-
-// Mock course data - replace with actual API call
-const mockCourses = {
-  1: {
-    id: 1,
-    title: "Full Stack Web Developer Career Accelerator",
-    desc: "Deep dive into advanced JavaScript concepts, closures, prototypes, and modern ES6+ features",
-    progress: 24,
-    img: "/images/python.png",
-  },
-  2: {
-    id: 2,
-    title: "Advanced JavaScript",
-    desc: "Deep dive into advanced JavaScript concepts, closures, prototypes, and modern ES6+ features",
-    progress: 24,
-    img: "/images/js.png",
-  },
-  3: {
-    id: 3,
-    title: "Machine Learning Basics",
-    desc: "Introduction to machine learning algorithms and practical implementation with real-world examples",
-    progress: 24,
-    img: "/images/ml.png",
-  },
-};
+import { getJSON } from "@/utils/http";
+import { Box, CircularProgress, Typography } from "@mui/material";
 
 function CourseLearningPageRoute({ params }) {
   const courseId = params?.id;
-  const course = mockCourses[courseId] || null;
+  const [course, setCourse] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchCourse = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await getJSON(`courses/${courseId}`);
+        if (response?.success && response.data) {
+          const data = response.data;
+          setCourse({
+            id: data._id,
+            title: data.title || "",
+            desc: data.description || "",
+            progress: 0,
+            img: data.thumbnailUrl || "/images/default-course.png",
+          });
+        } else {
+          setCourse(null);
+        }
+      } catch (err) {
+        console.error("Error loading course for my-learning:", err);
+        setError(err.message || "Failed to load course");
+        setCourse(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (courseId) {
+      fetchCourse();
+    }
+  }, [courseId]);
+
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error && !course) {
+    return (
+      <Box sx={{ p: 3, textAlign: "center" }}>
+        <Typography variant="h5" gutterBottom>
+          Failed to load course
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {error}
+        </Typography>
+      </Box>
+    );
+  }
 
   return <CourseLearningPage courseId={courseId} course={course} />;
 }
