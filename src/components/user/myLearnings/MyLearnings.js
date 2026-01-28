@@ -18,54 +18,8 @@ import { ClipLoader } from "react-spinners";
 import toast from "react-hot-toast";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useRouter } from "next/navigation";
-
-// Dummy API simulation
-const fetchCourses = () =>
-  new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        inProgress: [
-          {
-            id: 1,
-            title: "Full Stack Web Developer Career Accelerator",
-            desc: "Deep dive into advanced JavaScript concepts, closures, prototypes, and modern ES6+ features",
-            progress: 24,
-            img: "/images/python.png",
-          },
-          {
-            id: 2,
-            title: "Advanced JavaScript",
-            desc: "Deep dive into advanced JavaScript concepts, closures, prototypes, and modern ES6+ features",
-            progress: 24,
-            img: "/images/js.png",
-          },
-          {
-            id: 3,
-            title: "Machine Learning Basics",
-            desc: "Introduction to machine learning algorithms and practical implementation with real-world examples",
-            progress: 24,
-            img: "/images/ml.png",
-          },
-        ],
-        completed: [
-          {
-            id: 2,
-            title: "Advanced JavaScript",
-            desc: "Deep dive into advanced JavaScript concepts, closures, prototypes, and modern ES6+ features",
-            progress: 100,
-            img: "/images/js.png",
-          },
-          {
-            id: 3,
-            title: "Machine Learning Basics",
-            desc: "Introduction to machine learning algorithms and practical implementation with real-world examples",
-            progress: 100,
-            img: "/images/ml.png",
-          },
-        ],
-      });
-    }, 1800); 
-  });
+import { getJSON } from "@/utils/http";
+import { getStoredUserId } from "@/utils/authStorage";
 
 function MyLearnings() {
   const router = useRouter();
@@ -76,17 +30,50 @@ function MyLearnings() {
   useEffect(() => {
     let mounted = true;
 
-    fetchCourses()
-      .then((res) => {
-        if (mounted) {
-          setCourses(res);
+    const loadMyCourses = async () => {
+      try {
+        const userId = getStoredUserId();
+        if (!userId) {
           setLoading(false);
-          toast.success("Courses loaded successfully!", { id: "courses" });
+          return;
         }
-      })
-      .catch(() => {
-        toast.error("Failed to load courses", { id: "courses" });
-      });
+
+        setLoading(true);
+        const response = await getJSON(`users/my-courses?userId=${userId}`);
+
+        if (!mounted) return;
+
+        if (response?.success && Array.isArray(response.data)) {
+          // For now, treat all enrolled courses as "In Progress"
+          const inProgress = response.data.map((course) => ({
+            id: course.id,
+            title: course.title,
+            desc: course.description,
+            progress: 0,
+            img: course.thumbnailUrl || "/images/default-course.png",
+          }));
+
+          setCourses({
+            inProgress,
+            completed: [],
+          });
+          toast.success("Courses loaded successfully!", { id: "courses" });
+        } else {
+          setCourses({ inProgress: [], completed: [] });
+        }
+      } catch (error) {
+        console.error("Failed to load my courses:", error);
+        if (mounted) {
+          toast.error(error.message || "Failed to load courses", { id: "courses" });
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadMyCourses();
 
     return () => {
       mounted = false;

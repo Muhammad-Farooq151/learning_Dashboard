@@ -30,11 +30,13 @@ import {
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
-import { getJSON } from "@/utils/http";
+import { getJSON, postJSON } from "@/utils/http";
+import { getStoredUser, getStoredUserId } from "@/utils/authStorage";
 import { greenColor } from "@/utils/Colors";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import "./checkout-phone-input.css";
+import Swal from "sweetalert2";
 
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder");
@@ -73,6 +75,8 @@ function CheckoutForm({ course, onSuccess }) {
   });
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [errors, setErrors] = useState({});
+  const [paymentError, setPaymentError] = useState("");
+  const [clientSecret, setClientSecret] = useState(null);
 
   const handleInputChange = (field) => (e) => {
     setFormData({
@@ -144,9 +148,6 @@ function CheckoutForm({ course, onSuccess }) {
     const newErrors = {};
     if (!formData.fullName.trim()) newErrors.fullName = "Full name is required";
     if (!formData.phoneNumber) newErrors.phoneNumber = "Phone number is required";
-    if (!formData.cardName.trim()) newErrors.cardName = "Name on card is required";
-    if (!formData.expirationDate) newErrors.expirationDate = "Expiration date is required";
-    if (!formData.cvv) newErrors.cvv = "CVV is required";
     if (!formData.acceptTerms) newErrors.acceptTerms = "You must accept the terms";
 
     if (Object.keys(newErrors).length > 0) {
@@ -159,36 +160,101 @@ function CheckoutForm({ course, onSuccess }) {
     }
 
     setLoading(true);
+    setPaymentError("");
 
     try {
-      const cardElement = elements.getElement(CardElement);
-      
-      // Create payment method
-      const { error: pmError, paymentMethod: pm } = await stripe.createPaymentMethod({
-        type: "card",
-        card: cardElement,
-        billing_details: {
-          name: formData.cardName,
-          phone: formData.phoneNumber,
-        },
-      });
-
-      if (pmError) {
-        setErrors({ card: pmError.message });
+      const user = getStoredUser();
+      const userId = getStoredUserId();
+      if (!userId) {
+        setPaymentError("You must be logged in to complete the payment.");
         setLoading(false);
         return;
       }
 
-      // Here you would typically send paymentMethod.id to your backend
-      // to create a payment intent and process the payment
-      // For now, we'll just show success
-      console.log("Payment method created:", pm.id);
+      // Create payment intent on backend (secure)
+      const intentResponse = await postJSON("payments/create-payment-intent", {
+        courseId: course._id || course.id,
+        userId,
+      });
+
+      if (!intentResponse?.success || !intentResponse.clientSecret) {
+        throw new Error(intentResponse?.message || "Failed to initialize payment.");
+      }
+
+      const clientSecretValue = intentResponse.clientSecret;
+      setClientSecret(clientSecretValue);
+
+      const cardElement = elements.getElement(CardElement);
       
-      // Simulate successful payment
-      onSuccess();
+      const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
+        clientSecretValue,
+        {
+          payment_method: {
+            card: cardElement,
+            billing_details: {
+              name: formData.fullName,
+              phone: formData.phoneNumber,
+            },
+          },
+        }
+      );
+
+      if (confirmError) {
+        console.error("Stripe confirm error:", confirmError);
+        setPaymentError(confirmError.message || "Payment failed. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      if (paymentIntent && paymentIntent.status === "succeeded") {
+        // Mark course as enrolled for this user
+        try {
+          await postJSON("users/enroll", {
+            userId,
+            courseId: course._id || course.id,
+          });
+        } catch (enrollError) {
+          console.error("Error enrolling user in course:", enrollError);
+        }
+
+        // Mark course as enrolled for this user
+        try {
+          await postJSON("users/enroll", {
+            userId,
+            courseId: course._id || course.id,
+          });
+        } catch (enrollError) {
+          console.error("Error enrolling user in course:", enrollError);
+        }
+
+        // SweetAlert2 success popup
+        await Swal.fire({
+          icon: "success",
+          title: "Payment Successful",
+          text: `You have successfully enrolled in "${course.title || "this course"}".`,
+          confirmButtonColor: greenColor,
+          confirmButtonText: "Go to My Learnings",
+        });
+
+        onSuccess();
+      } else {
+        const message = "Payment was not successful. Please try again.";
+        setPaymentError(message);
+        Swal.fire({
+          icon: "error",
+          title: "Payment Failed",
+          text: message,
+        });
+      }
     } catch (error) {
       console.error("Payment error:", error);
-      setErrors({ card: error.message || "Payment failed. Please try again." });
+      const message = error.message || "Payment failed. Please try again.";
+      setPaymentError(message);
+      Swal.fire({
+        icon: "error",
+        title: "Payment Failed",
+        text: message,
+      });
     } finally {
       setLoading(false);
     }
@@ -517,6 +583,17 @@ function CheckoutForm({ course, onSuccess }) {
           )}
         </Box>
 
+        {/* Global payment error */}
+        {paymentError && (
+          <Typography
+            variant="body2"
+            color="error"
+            sx={{ mb: 1 }}
+          >
+            {paymentError}
+          </Typography>
+        )}
+
         {/* Confirm & Pay Button */}
         <Button
           type="submit"
@@ -603,10 +680,8 @@ function CheckoutPage({ courseId }) {
 
   const handlePaymentSuccess = () => {
     setPaymentSuccess(true);
-    // Redirect to success page or course
-    setTimeout(() => {
-      router.push(`/user/my-leaning/${courseId}`);
-    }, 2000);
+    // Redirect to My Learnings after success alert
+    router.push("/user/my-leaning");
   };
 
   if (loading) {

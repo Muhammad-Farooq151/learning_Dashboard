@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -27,10 +27,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import CourseReviews from "./CourseReviews";
 import CourseCurriculum from "./CourseCurriculum";
+import { getStoredUserId } from "@/utils/authStorage";
+import { getJSON } from "@/utils/http";
+import Swal from "sweetalert2";
 
 function CourseDetails({ course }) {
   const router = useRouter();
   const [tab, setTab] = useState("overview");
+  // null = unknown (initial), true/false = checked
+  const [isEnrolled, setIsEnrolled] = useState(null);
+  const [checkingEnroll, setCheckingEnroll] = useState(false);
 
   // Map API course data to component structure
   const mappedCourse = useMemo(() => {
@@ -86,6 +92,51 @@ function CourseDetails({ course }) {
   }, [course]);
 
   const faqs = useMemo(() => mappedCourse?.faq ?? [], [mappedCourse]);
+
+  // Check if user is already enrolled in this course
+  useEffect(() => {
+    const checkEnrollment = async () => {
+      try {
+        const userId = getStoredUserId();
+        if (!userId || !mappedCourse?.id) {
+          setIsEnrolled(false);
+          return;
+        }
+        setCheckingEnroll(true);
+        const response = await getJSON(`users/my-courses?userId=${userId}`);
+        if (response?.success && Array.isArray(response.data)) {
+          const found = response.data.some(
+            (c) => c.id === mappedCourse.id || c.id === mappedCourse.id?.toString()
+          );
+          setIsEnrolled(found);
+        } else {
+          setIsEnrolled(false);
+        }
+      } catch (error) {
+        console.error("Error checking enrollment status:", error);
+        setIsEnrolled(false);
+      } finally {
+        setCheckingEnroll(false);
+      }
+    };
+
+    if (mappedCourse) {
+      checkEnrollment();
+    }
+  }, [mappedCourse]);
+
+  const handleEnrollClick = () => {
+    if (isEnrolled) {
+      Swal.fire({
+        icon: "info",
+        title: "Already Enrolled",
+        text: "You are already enrolled in this course.",
+        confirmButtonColor: "#2DB888",
+      });
+      return;
+    }
+    router.push(`/checkout/${mappedCourse.id}`);
+  };
 
   if (!mappedCourse) {
     return (
@@ -184,13 +235,18 @@ function CourseDetails({ course }) {
               </Stack>
 
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <Button 
-                  size="large" 
-                  variant="contained" 
+                <Button
+                  size="large"
+                  variant="contained"
                   color="success"
-                  onClick={() => router.push(`/checkout/${mappedCourse.id}`)}
+                  onClick={handleEnrollClick}
+                  disabled={checkingEnroll || isEnrolled === true}
                 >
-                  Enroll Now
+                  {checkingEnroll || isEnrolled === null
+                    ? "Checking..."
+                    : isEnrolled
+                    ? "Enrolled"
+                    : "Enroll Now"}
                 </Button>
                 <Stack direction="row" spacing={1} alignItems="baseline" flexWrap="wrap">
                   {mappedCourse.originalPrice ? (
