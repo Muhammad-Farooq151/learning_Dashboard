@@ -14,6 +14,7 @@ import {
   FormControl,
   FormHelperText,
   Select,
+  Menu,
   MenuItem,
   Chip,
   Autocomplete,
@@ -36,6 +37,7 @@ import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
 import ImageRoundedIcon from "@mui/icons-material/ImageRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import { greenColor } from "@/utils/Colors";
 import Swal from "sweetalert2";
 import { postFormData, putFormData, getJSON } from "@/utils/http";
@@ -63,6 +65,11 @@ const step0ValidationSchema = Yup.object().shape({
     .typeError("Discount must be a number")
     .min(0, "Discount cannot be negative")
     .max(100, "Discount cannot exceed 100%"),
+  courseLevel: Yup.string().required("Course level is required"),
+  taxPercentage: Yup.number()
+    .typeError("Tax must be a number")
+    .min(0, "Tax cannot be negative")
+    .max(70, "Tax cannot exceed 70%"),
   description: Yup.string()
     .trim()
     .required("Description is required")
@@ -149,6 +156,8 @@ function NewCourse({ courseId = null }) {
     instructor: "",
     price: "",
     discountPercentage: "",
+    courseLevel: "",
+    taxPercentage: "",
     skills: [],
     description: "",
   });
@@ -180,6 +189,18 @@ function NewCourse({ courseId = null }) {
   const [errors, setErrors] = useState({});
   const [lessonErrors, setLessonErrors] = useState({});
   const [thumbnailError, setThumbnailError] = useState("");
+  const [categoryAnchorEl, setCategoryAnchorEl] = useState(null);
+  const [courseLevelAnchorEl, setCourseLevelAnchorEl] = useState(null);
+
+  const categoryOptions = [
+    "AI Agents & Agentic AI",
+    "Programming",
+    "Design",
+    "Data Science",
+    "AI/ML",
+  ];
+
+  const courseLevelOptions = ["Beginner", "Intermediate", "Expert"];
 
   // Fetch tutors
   useEffect(() => {
@@ -219,9 +240,14 @@ function NewCourse({ courseId = null }) {
             instructor: course.instructor || "",
             price: course.price?.toString() || "",
             discountPercentage: course.discountPercentage?.toString() || "0",
+            courseLevel: course.courseLevel || "",
+            taxPercentage: course.taxPercentage?.toString() || "0",
             skills: course.skills || [],
             description: course.description || "",
           });
+          
+          // Debug: Log course data to check courseLevel
+          console.log("Loaded course data - courseLevel:", course.courseLevel, "taxPercentage:", course.taxPercentage);
           
           // Pre-fill FAQs
           if (course.faqs && course.faqs.length > 0) {
@@ -285,6 +311,52 @@ function NewCourse({ courseId = null }) {
         [field]: "",
       });
     }
+  };
+
+  const handleCategoryClick = (event) => {
+    setCategoryAnchorEl(event.currentTarget);
+  };
+
+  const handleCategoryClose = () => {
+    setCategoryAnchorEl(null);
+  };
+
+  const handleCategorySelect = (category) => {
+    setCourseData({
+      ...courseData,
+      category: category,
+    });
+    // Clear error when category is selected
+    if (errors.category) {
+      setErrors({
+        ...errors,
+        category: "",
+      });
+    }
+    handleCategoryClose();
+  };
+
+  const handleCourseLevelClick = (event) => {
+    setCourseLevelAnchorEl(event.currentTarget);
+  };
+
+  const handleCourseLevelClose = () => {
+    setCourseLevelAnchorEl(null);
+  };
+
+  const handleCourseLevelSelect = (level) => {
+    setCourseData({
+      ...courseData,
+      courseLevel: level,
+    });
+    // Clear error when course level is selected
+    if (errors.courseLevel) {
+      setErrors({
+        ...errors,
+        courseLevel: "",
+      });
+    }
+    handleCourseLevelClose();
   };
 
   // Calculate discounted price
@@ -442,6 +514,8 @@ function NewCourse({ courseId = null }) {
         instructor: courseData.instructor,
         price: courseData.price,
         discountPercentage: courseData.discountPercentage ? parseFloat(courseData.discountPercentage) : 0,
+        courseLevel: courseData.courseLevel,
+        taxPercentage: courseData.taxPercentage ? parseFloat(courseData.taxPercentage) : 0,
         description: courseData.description,
       }, { abortEarly: false });
       setErrors({});
@@ -706,6 +780,8 @@ function NewCourse({ courseId = null }) {
       formData.append('instructor', courseData.instructor);
       formData.append('price', courseData.price);
       formData.append('discountPercentage', courseData.discountPercentage || '0');
+      if (courseData.courseLevel) formData.append('courseLevel', courseData.courseLevel);
+      formData.append('taxPercentage', courseData.taxPercentage || '0');
       formData.append('description', courseData.description);
       formData.append('status', 'published');
       
@@ -801,6 +877,8 @@ function NewCourse({ courseId = null }) {
       if (courseData.instructor) formData.append('instructor', courseData.instructor);
       if (courseData.price) formData.append('price', courseData.price);
       if (courseData.discountPercentage) formData.append('discountPercentage', courseData.discountPercentage);
+      if (courseData.courseLevel) formData.append('courseLevel', courseData.courseLevel);
+      if (courseData.taxPercentage) formData.append('taxPercentage', courseData.taxPercentage);
       if (courseData.description) formData.append('description', courseData.description);
       formData.append('status', 'draft');
       
@@ -903,37 +981,152 @@ function NewCourse({ courseId = null }) {
                   <Typography variant="body2" fontWeight={500} mb={1}>
                     Category
                   </Typography>
-                  <FormControl fullWidth error={Boolean(errors.category)}>
-                    <Select
-                      value={courseData.category}
-                      onChange={(e) => {
-                        handleChange("category")(e);
-                        // Clear error when category is selected
-                        if (errors.category) {
-                          setErrors({
-                            ...errors,
-                            category: "",
-                          });
-                        }
-                      }}
-                      displayEmpty
+                  <Box sx={{ position: "relative" }}>
+                    <Button
+                      variant="outlined"
+                      onClick={handleCategoryClick}
+                      endIcon={<KeyboardArrowDownRoundedIcon />}
+                      fullWidth
                       sx={{
+                        justifyContent: "space-between",
+                        border: errors.category ? "1px solid #d32f2f" : "1px solid #E2E8F0",
+                        height: "56px",
+                        bgcolor: "white",
+                        color: courseData.category ? "black" : "#64748B",
+                        textTransform: "none",
                         borderRadius: 2,
+                        "&:hover": {
+                          border: errors.category ? "1px solid #d32f2f" : "1px solid #E2E8F0",
+                          backgroundColor: "white",
+                        },
                       }}
                     >
-                      <MenuItem value="">Select Category</MenuItem>
-                      <MenuItem value="AI Agents & Agentic AI">
-                        AI Agents & Agentic AI
-                      </MenuItem>
-                      <MenuItem value="Programming">Programming</MenuItem>
-                      <MenuItem value="Design">Design</MenuItem>
-                      <MenuItem value="Data Science">Data Science</MenuItem>
-                      <MenuItem value="AI/ML">AI/ML</MenuItem>
-                    </Select>
+                      {courseData.category || "Select Category"}
+                    </Button>
+                    <Menu
+                      anchorEl={categoryAnchorEl}
+                      open={Boolean(categoryAnchorEl)}
+                      onClose={handleCategoryClose}
+                      disablePortal={true}
+                      anchorOrigin={{
+                        vertical: "bottom",
+                        horizontal: "left",
+                      }}
+                      transformOrigin={{
+                        vertical: "top",
+                        horizontal: "left",
+                      }}
+                      PaperProps={{
+                        sx: {
+                          mt: 0.5,
+                          minWidth: 200,
+                          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+                          borderRadius: 2,
+                          border: "1px solid #E2E8F0",
+                          maxHeight: 300,
+                          overflow: "auto",
+                        },
+                      }}
+                      MenuListProps={{
+                        sx: { py: 0.5 },
+                      }}
+                    >
+                      {categoryOptions.map((category) => (
+                        <MenuItem
+                          key={category}
+                          onClick={() => handleCategorySelect(category)}
+                          sx={{
+                            backgroundColor:
+                              courseData.category === category ? "#F1F5F9" : "transparent",
+                            "&:hover": { backgroundColor: "#F8FAFC" },
+                          }}
+                        >
+                          {category}
+                        </MenuItem>
+                      ))}
+                    </Menu>
                     {errors.category && (
-                      <FormHelperText>{errors.category}</FormHelperText>
+                      <FormHelperText error sx={{ mt: 0.5, mx: 1.75 }}>
+                        {errors.category}
+                      </FormHelperText>
                     )}
-                  </FormControl>
+                  </Box>
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Typography variant="body2" fontWeight={500} mb={1}>
+                    Course Level *
+                  </Typography>
+                  <Box sx={{ position: "relative" }}>
+                    <Button
+                      variant="outlined"
+                      onClick={handleCourseLevelClick}
+                      endIcon={<KeyboardArrowDownRoundedIcon />}
+                      fullWidth
+                      sx={{
+                        justifyContent: "space-between",
+                        border: errors.courseLevel ? "1px solid #d32f2f" : "1px solid #E2E8F0",
+                        height: "56px",
+                        bgcolor: "white",
+                        color: courseData.courseLevel ? "black" : "#64748B",
+                        textTransform: "none",
+                        borderRadius: 2,
+                        "&:hover": {
+                          border: errors.courseLevel ? "1px solid #d32f2f" : "1px solid #E2E8F0",
+                          backgroundColor: "white",
+                        },
+                      }}
+                    >
+                      {courseData.courseLevel || "Select Course Level"}
+                    </Button>
+                    <Menu
+                      anchorEl={courseLevelAnchorEl}
+                      open={Boolean(courseLevelAnchorEl)}
+                      onClose={handleCourseLevelClose}
+                      disablePortal={true}
+                      anchorOrigin={{
+                        vertical: "bottom",
+                        horizontal: "left",
+                      }}
+                      transformOrigin={{
+                        vertical: "top",
+                        horizontal: "left",
+                      }}
+                      PaperProps={{
+                        sx: {
+                          mt: 0.5,
+                          minWidth: 200,
+                          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+                          borderRadius: 2,
+                          border: "1px solid #E2E8F0",
+                          maxHeight: 300,
+                          overflow: "auto",
+                        },
+                      }}
+                      MenuListProps={{
+                        sx: { py: 0.5 },
+                      }}
+                    >
+                      {courseLevelOptions.map((level) => (
+                        <MenuItem
+                          key={level}
+                          onClick={() => handleCourseLevelSelect(level)}
+                          sx={{
+                            backgroundColor:
+                              courseData.courseLevel === level ? "#F1F5F9" : "transparent",
+                            "&:hover": { backgroundColor: "#F8FAFC" },
+                          }}
+                        >
+                          {level}
+                        </MenuItem>
+                      ))}
+                    </Menu>
+                    {errors.courseLevel && (
+                      <FormHelperText error sx={{ mt: 0.5, mx: 1.75 }}>
+                        {errors.courseLevel}
+                      </FormHelperText>
+                    )}
+                  </Box>
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 6 }}>
@@ -1047,6 +1240,42 @@ function NewCourse({ courseId = null }) {
                     }}
                     error={Boolean(errors.discountPercentage)}
                     helperText={errors.discountPercentage || "Enter 0-100"}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Typography variant="body2" fontWeight={500} mb={1}>
+                    Tax Percentage *
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    type="text"
+                    placeholder="eg: 8 (min 0%, max 70%)"
+                    value={courseData.taxPercentage}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Only allow numbers and decimal point, max 70
+                      if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                        const numValue = parseFloat(value) || 0;
+                        if (numValue <= 70 || value === '') {
+                          handleChange("taxPercentage")(e);
+                        }
+                      }
+                    }}
+                    onKeyPress={(e) => {
+                      // Prevent non-numeric characters except decimal point
+                      const char = String.fromCharCode(e.which);
+                      if (!/[0-9.]/.test(char)) {
+                        e.preventDefault();
+                      }
+                    }}
+                    error={Boolean(errors.taxPercentage)}
+                    helperText={errors.taxPercentage || "Minimum 0%, Maximum 70%"}
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         borderRadius: 2,

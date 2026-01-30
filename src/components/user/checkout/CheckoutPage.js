@@ -124,8 +124,9 @@ function CheckoutForm({ course, onSuccess }) {
     // Calculate price after discount
     const priceAfterDiscount = originalPrice - discountAmount;
     
-    // Calculate tax (8% on discounted price)
-    const tax = priceAfterDiscount * 0.08;
+    // Calculate tax using course taxPercentage (dynamic, default to 0 if not provided)
+    const taxPercentage = course.taxPercentage || 0;
+    const tax = priceAfterDiscount * (taxPercentage / 100);
     
     // Total = discounted price + tax
     const total = priceAfterDiscount + tax;
@@ -134,6 +135,7 @@ function CheckoutForm({ course, onSuccess }) {
       original: originalPrice,
       discount: discountAmount,
       discountPercentage: discountPercentage,
+      taxPercentage: taxPercentage,
       tax: tax,
       total: total,
     };
@@ -207,14 +209,27 @@ function CheckoutForm({ course, onSuccess }) {
       }
 
       if (paymentIntent && paymentIntent.status === "succeeded") {
-        // Mark course as enrolled for this user
+        const pricing = calculateTotal();
+        
+        // Create transaction record
         try {
-          await postJSON("users/enroll", {
+          await postJSON("transactions", {
             userId,
             courseId: course._id || course.id,
+            amount: pricing.total,
+            originalPrice: pricing.original,
+            discountPercentage: pricing.discountPercentage,
+            discountAmount: pricing.discount,
+            tax: pricing.tax,
+            total: pricing.total,
+            stripePaymentIntentId: paymentIntent.id,
+            paymentMethod: "card",
+            currency: "usd",
+            fullName: formData.fullName,
+            phoneNumber: formData.phoneNumber,
           });
-        } catch (enrollError) {
-          console.error("Error enrolling user in course:", enrollError);
+        } catch (transactionError) {
+          console.error("Error creating transaction:", transactionError);
         }
 
         // Mark course as enrolled for this user
@@ -661,8 +676,9 @@ function CheckoutPage({ courseId }) {
     // Calculate price after discount
     const priceAfterDiscount = originalPrice - discountAmount;
     
-    // Calculate tax (8% on discounted price)
-    const tax = priceAfterDiscount * 0.08;
+    // Calculate tax using course taxPercentage (dynamic, default to 0 if not provided)
+    const taxPercentage = course.taxPercentage || 0;
+    const tax = priceAfterDiscount * (taxPercentage / 100);
     
     // Total = discounted price + tax
     const total = priceAfterDiscount + tax;
@@ -671,6 +687,7 @@ function CheckoutPage({ courseId }) {
       original: originalPrice,
       discount: discountAmount,
       discountPercentage: discountPercentage,
+      taxPercentage: taxPercentage,
       tax: tax,
       total: total,
     };
@@ -824,7 +841,7 @@ function CheckoutPage({ courseId }) {
                   )}
                   <Stack direction="row" justifyContent="space-between">
                     <Typography variant="body2" color="text.secondary">
-                      Tax
+                      Tax {pricing.taxPercentage > 0 ? `(${pricing.taxPercentage}%)` : ''}
                     </Typography>
                     <Typography variant="body2">${pricing.tax.toFixed(2)}</Typography>
                   </Stack>
