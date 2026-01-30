@@ -186,10 +186,50 @@ function MyLearnings() {
         </>
       ) : (
         <>
-          {tab === 0 &&
-            courses.inProgress.map((c) => renderCourse(c, false))}
-          {tab === 1 &&
-            courses.completed.map((c) => renderCourse(c, true))}
+          {tab === 0 && (
+            <>
+              {courses.inProgress.length > 0 ? (
+                courses.inProgress.map((c) => renderCourse(c, false))
+              ) : (
+                <Box
+                  sx={{
+                    textAlign: "center",
+                    py: 6,
+                    px: 2,
+                  }}
+                >
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    No courses in progress
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Start learning by enrolling in a course
+                  </Typography>
+                </Box>
+              )}
+            </>
+          )}
+          {tab === 1 && (
+            <>
+              {courses.completed.length > 0 ? (
+                courses.completed.map((c) => renderCourse(c, true))
+              ) : (
+                <Box
+                  sx={{
+                    textAlign: "center",
+                    py: 6,
+                    px: 2,
+                  }}
+                >
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    No courses completed yet
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Complete your enrolled courses to see them here
+                  </Typography>
+                </Box>
+              )}
+            </>
+          )}
         </>
       )}
 
