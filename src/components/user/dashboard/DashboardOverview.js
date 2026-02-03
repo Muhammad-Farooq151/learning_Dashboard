@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { Box, Card, CardContent, Stack, Typography,Grid } from "@mui/material";
+import React, { useState, useEffect } from "react";
+import { Box, Card, CardContent, Stack, Typography, Grid, CircularProgress } from "@mui/material";
 import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
@@ -20,54 +20,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-
-const statCards = [
-  {
-    id: "courses",
-    icon: <MenuBookRoundedIcon sx={{ color: "#2DB888" }} />,
-    label: "Courses Completed",
-    value: "4",
-    delta: "+2.5",
-    deltaColor: "#2DB888",
-  },
-  {
-    id: "time",
-    icon: <AccessTimeRoundedIcon sx={{ color: "#1CB0F6" }} />,
-    label: "Total Learning Time",
-    value: "45h",
-    delta: "-4.2",
-    deltaColor: "#F87171",
-  },
-  {
-    id: "progress",
-    icon: <TrendingUpRoundedIcon sx={{ color: "#6B4EFF" }} />,
-    label: "Overall Progress",
-    value: "68%",
-    delta: "+2.25",
-    deltaColor: "#2DB888",
-  },
-];
-
-const monthlyProgress = [
-  { month: "Jan", value: 20 },
-  { month: "Feb", value: 32 },
-  { month: "Mar", value: 48 },
-  { month: "Apr", value: 60 },
-  { month: "May", value: 78 },
-  { month: "Jun", value: 26 },
-  { month: "Jul", value: 14 },
-  { month: "Aug", value: 72 },
-  { month: "Sep", value: 50 },
-  { month: "Oct", value: 65 },
-  { month: "Nov", value: 42 },
-  { month: "Dec", value: 70 },
-];
-
-const categoryBreakdown = [
-  { name: "Programming", value: 65, color: "#4F7BFF" },
-  { name: "Design", value: 25, color: "#FFC657" },
-  { name: "Data Science", value: 10, color: "#8CD867" },
-];
+import { getJSON } from "@/utils/http";
+import { getStoredUserId } from "@/utils/authStorage";
 
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
@@ -146,6 +100,125 @@ const StatCard = ({ item }) => {
 };
 
 function DashboardOverview() {
+  const [loading, setLoading] = useState(true);
+  const [statCards, setStatCards] = useState([
+    {
+      id: "courses",
+      icon: <MenuBookRoundedIcon sx={{ color: "#2DB888" }} />,
+      label: "Courses Completed",
+      value: "0",
+      delta: "+0",
+      deltaColor: "#2DB888",
+    },
+    {
+      id: "time",
+      icon: <AccessTimeRoundedIcon sx={{ color: "#1CB0F6" }} />,
+      label: "Total Learning Time",
+      value: "0h",
+      delta: "+0",
+      deltaColor: "#2DB888",
+    },
+    {
+      id: "progress",
+      icon: <TrendingUpRoundedIcon sx={{ color: "#6B4EFF" }} />,
+      label: "Overall Progress",
+      value: "0%",
+      delta: "+0",
+      deltaColor: "#2DB888",
+    },
+  ]);
+  const [monthlyProgress, setMonthlyProgress] = useState([
+    { month: "Jan", value: 0 },
+    { month: "Feb", value: 0 },
+    { month: "Mar", value: 0 },
+    { month: "Apr", value: 0 },
+    { month: "May", value: 0 },
+    { month: "Jun", value: 0 },
+    { month: "Jul", value: 0 },
+    { month: "Aug", value: 0 },
+    { month: "Sep", value: 0 },
+    { month: "Oct", value: 0 },
+    { month: "Nov", value: 0 },
+    { month: "Dec", value: 0 },
+  ]);
+  const [categoryBreakdown, setCategoryBreakdown] = useState([
+    { name: "No courses", value: 100, color: "#95A5A6" },
+  ]);
+
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      try {
+        setLoading(true);
+        const userId = getStoredUserId();
+        if (!userId) {
+          setLoading(false);
+          return;
+        }
+
+        const response = await getJSON(`users/dashboard-stats?userId=${userId}`);
+        if (response && response.success && response.data) {
+          const stats = response.data;
+
+          // Update stat cards
+          setStatCards([
+            {
+              id: "courses",
+              icon: <MenuBookRoundedIcon sx={{ color: "#2DB888" }} />,
+              label: "Courses Completed",
+              value: stats.coursesCompleted?.toString() || "0",
+              delta: "+0",
+              deltaColor: "#2DB888",
+            },
+            {
+              id: "time",
+              icon: <AccessTimeRoundedIcon sx={{ color: "#1CB0F6" }} />,
+              label: "Total Learning Time",
+              value: stats.totalLearningTime || "0h",
+              delta: "+0",
+              deltaColor: "#2DB888",
+            },
+            {
+              id: "progress",
+              icon: <TrendingUpRoundedIcon sx={{ color: "#6B4EFF" }} />,
+              label: "Overall Progress",
+              value: `${stats.overallProgress || 0}%`,
+              delta: "+0",
+              deltaColor: "#2DB888",
+            },
+          ]);
+
+          // Update monthly progress
+          if (stats.monthlyProgress && Array.isArray(stats.monthlyProgress)) {
+            setMonthlyProgress(stats.monthlyProgress);
+          }
+
+          // Update category breakdown
+          if (stats.categoryBreakdown && Array.isArray(stats.categoryBreakdown) && stats.categoryBreakdown.length > 0) {
+            setCategoryBreakdown(stats.categoryBreakdown);
+          } else {
+            setCategoryBreakdown([
+              { name: "No courses", value: 100, color: "#95A5A6" },
+            ]);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <Box sx={{ p: { xs: 2, md: 4 }, display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ p: { xs: 2, md: 4 } }}>
       <Typography variant="h5" fontWeight={600} mb={3}>

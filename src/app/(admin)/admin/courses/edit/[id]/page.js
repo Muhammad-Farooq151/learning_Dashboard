@@ -1,9 +1,10 @@
 import React from 'react'
 import EditCourse from '@/components/admin/courses/EditCourse'
 
-function page({ params }) {
+async function page({ params }) {
+  const resolvedParams = await params;
   return (
-    <EditCourse courseId={params.id} />
+    <EditCourse courseId={resolvedParams.id} />
   )
 }
 

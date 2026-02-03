@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, use } from "react";
 import CourseLearningPage from "@/components/user/myLearnings/CourseLearningPage";
 import { getJSON } from "@/utils/http";
 import { Box, CircularProgress, Typography } from "@mui/material";
 
 function CourseLearningPageRoute({ params }) {
-  const courseId = params?.id;
+  const resolvedParams = use(params);
+  const courseId = resolvedParams?.id;
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,6 +26,8 @@ function CourseLearningPageRoute({ params }) {
             desc: data.description || "",
             progress: 0,
             img: data.thumbnailUrl || "/images/default-course.png",
+            // Pass full course data
+            fullData: data,
           });
         } else {
           setCourse(null);

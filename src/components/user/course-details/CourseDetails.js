@@ -75,7 +75,7 @@ function CourseDetails({ course }) {
       students: course.enrolled || 0,
       rating: 4.8, // Default rating if not in API
       reviews: "4.8k", // Default reviews
-      level: "Beginner", // Default level
+      level: course.courseLevel || "Beginner", // Get from API, default to Beginner
       category: course.category || 'Uncategorized',
       skills: course.skills || [],
       learnPoints: course.lessons?.map(lesson => lesson.learningOutcomes || lesson.lessonName) || [],
