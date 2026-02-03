@@ -32,12 +32,14 @@ import { toast } from "react-hot-toast";
 import { clearAuthToken } from "@/utils/authStorage";
 import { SupervisedUserCircle } from "@mui/icons-material";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 
 const NAV = [
   { label: "Dashboard", href: "/admin/dashboard", icon: <DashboardRoundedIcon /> },
   { label: "Courses", href: "/admin/courses", icon: <MenuBookOutlinedIcon /> },
   { label: "Users", href: "/admin/users", icon: <SupervisedUserCircle /> },
   { label: "Tutors", href: "/admin/tutors", icon: <SchoolOutlinedIcon /> },
+  { label: "Admins", href: "/admin/admins", icon: <AdminPanelSettingsOutlinedIcon /> },
   { label: "Refunds", href: "/admin/refunds", icon: <WorkspacePremiumOutlinedIcon /> },
   { label: "Settings", href: "/admin/settings", icon: <SettingsOutlinedIcon /> },
 ];
