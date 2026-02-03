@@ -26,6 +26,8 @@ function CourseLearningPageRoute({ params }) {
             desc: data.description || "",
             progress: 0,
             img: data.thumbnailUrl || "/images/default-course.png",
+            // Pass full course data
+            fullData: data,
           });
         } else {
           setCourse(null);

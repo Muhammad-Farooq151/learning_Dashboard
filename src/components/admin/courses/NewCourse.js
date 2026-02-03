@@ -258,13 +258,15 @@ function NewCourse({ courseId = null }) {
           
           // Pre-fill lessons
           if (course.lessons && course.lessons.length > 0) {
-            setLessons(course.lessons.map(lesson => ({
+            const mappedLessons = course.lessons.map(lesson => ({
               lessonName: lesson.lessonName || "",
               skills: lesson.skills || [],
               learningOutcomes: lesson.learningOutcomes || "",
               videoFile: null, // New video file (optional in edit mode)
               videoUrl: lesson.videoUrl || null, // Existing video URL
-            })));
+            }));
+            console.log("Loaded lessons with videoUrls:", mappedLessons.map(l => ({ name: l.lessonName, videoUrl: l.videoUrl })));
+            setLessons(mappedLessons);
           } else {
             setLessons([{
               lessonName: "",
@@ -459,7 +461,14 @@ function NewCourse({ courseId = null }) {
   const handleVideoFileChange = (lessonIndex, file) => {
     const newLessons = [...lessons];
     newLessons[lessonIndex].videoFile = file;
+    // When a new video is uploaded in edit mode, we keep videoUrl for backend reference
+    // but videoFile takes priority in UI display
     setLessons(newLessons);
+    console.log(`Video uploaded for lesson ${lessonIndex}:`, {
+      lessonName: newLessons[lessonIndex].lessonName,
+      videoFile: file?.name,
+      hasVideoUrl: !!newLessons[lessonIndex].videoUrl,
+    });
     // Clear error when file is selected
     if (lessonErrors[lessonIndex]?.videoFile) {
       setLessonErrors({
@@ -475,7 +484,10 @@ function NewCourse({ courseId = null }) {
   const handleRemoveVideoFile = (lessonIndex) => {
     const newLessons = [...lessons];
     newLessons[lessonIndex].videoFile = null;
+    // In edit mode, if we remove the new video file, keep the existing videoUrl
+    // videoUrl will remain for backend reference
     setLessons(newLessons);
+    console.log(`Video removed for lesson ${lessonIndex}, keeping videoUrl:`, newLessons[lessonIndex].videoUrl);
     // Clear error when file is removed
     if (lessonErrors[lessonIndex]?.videoFile) {
       setLessonErrors({
@@ -536,15 +548,28 @@ function NewCourse({ courseId = null }) {
     try {
       // In edit mode, check if lesson has either videoFile or videoUrl
       if (isEditMode) {
-        const hasValidVideos = lessons.every(lesson => lesson.videoFile || lesson.videoUrl);
-        if (!hasValidVideos) {
-          const lessonErrs = {};
-          lessons.forEach((lesson, index) => {
-            if (!lesson.videoFile && !lesson.videoUrl) {
-              if (!lessonErrs[index]) lessonErrs[index] = {};
-              lessonErrs[index].videoFile = "Either upload a new video or keep the existing one";
-            }
-          });
+        console.log("Validating lessons:", lessons.map((l, i) => ({ 
+          index: i, 
+          name: l.lessonName, 
+          hasVideoFile: !!l.videoFile, 
+          hasVideoUrl: !!l.videoUrl,
+          videoUrl: l.videoUrl 
+        })));
+        
+        // Check each lesson individually and provide specific error messages
+        const lessonErrs = {};
+        let hasInvalidLesson = false;
+        
+        lessons.forEach((lesson, index) => {
+          // In edit mode, a lesson must have either a new video file or an existing video URL
+          if (!lesson.videoFile && !lesson.videoUrl) {
+            hasInvalidLesson = true;
+            if (!lessonErrs[index]) lessonErrs[index] = {};
+            lessonErrs[index].videoFile = "Either upload a new video or keep the existing one";
+          }
+        });
+        
+        if (hasInvalidLesson) {
           setLessonErrors(lessonErrs);
           return { 
             isValid: false, 
@@ -803,12 +828,17 @@ function NewCourse({ courseId = null }) {
         formData.append('thumbnail', thumbnailFile);
       }
       
-      // Add lesson videos
+      // Add lesson videos with their lesson indices
+      // We need to track which lesson each video belongs to
+      const videoIndices = [];
       lessons.forEach((lesson, index) => {
         if (lesson.videoFile) {
           formData.append('lessonVideos', lesson.videoFile);
+          videoIndices.push(index); // Track which lesson index this video belongs to
         }
       });
+      // Send the mapping of video indices to lesson indices
+      formData.append('videoIndices', JSON.stringify(videoIndices));
 
       // Make API call - use PUT for edit mode, POST for new course
       const apiUrl = isEditMode ? `/courses/${courseId}` : '/courses';
@@ -900,12 +930,15 @@ function NewCourse({ courseId = null }) {
         formData.append('thumbnail', thumbnailFile);
       }
       
-      // Add lesson videos if provided
-      lessons.forEach((lesson) => {
+      // Add lesson videos with their lesson indices
+      const videoIndices = [];
+      lessons.forEach((lesson, index) => {
         if (lesson.videoFile) {
           formData.append('lessonVideos', lesson.videoFile);
+          videoIndices.push(index);
         }
       });
+      formData.append('videoIndices', JSON.stringify(videoIndices));
 
       // Make API call - use PUT for edit mode, POST for new course
       const apiUrl = isEditMode ? `/courses/${courseId}` : '/courses';
@@ -1463,9 +1496,14 @@ function NewCourse({ courseId = null }) {
               Upload Video and add some Relevant details about the video lecture
             </Typography>
 
-            {lessons.map((lesson, lessonIndex) => (
+            {lessons.map((lesson, lessonIndex) => {
+              // Debug: Log lesson state for rendering
+              if (lesson.videoFile) {
+                console.log(`Rendering lesson ${lessonIndex} with videoFile:`, lesson.videoFile.name);
+              }
+              return (
               <Box
-                key={lessonIndex}
+                key={`lesson-${lessonIndex}-${lesson.lessonName || 'new'}`}
                 sx={{
                   mb: 4,
                   p: 3,
@@ -1808,7 +1846,8 @@ function NewCourse({ courseId = null }) {
                   </Grid>
                 </Grid>
               </Box>
-            ))}
+              );
+            })}
           </Box>
         );
       case 2:
