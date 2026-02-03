@@ -170,6 +170,15 @@ function NewCourse({ courseId = null }) {
       answer: "",
     },
   ]);
+  const [courseResources, setCourseResources] = useState([
+    {
+      name: "",
+      description: "",
+      fileType: "",
+      file: null,
+      fileUrl: null, // For existing files in edit mode
+    },
+  ]);
   const [lessons, setLessons] = useState([
     {
       lessonName: "",
@@ -254,6 +263,25 @@ function NewCourse({ courseId = null }) {
             setFaqs(course.faqs);
           } else {
             setFaqs([{ question: "", answer: "" }]);
+          }
+          
+          // Pre-fill Course Resources
+          if (course.resources && course.resources.length > 0) {
+            setCourseResources(course.resources.map(resource => ({
+              name: resource.name || "",
+              description: resource.description || "",
+              fileType: resource.fileType || "",
+              file: null,
+              fileUrl: resource.fileUrl || null,
+            })));
+          } else {
+            setCourseResources([{
+              name: "",
+              description: "",
+              fileType: "",
+              file: null,
+              fileUrl: null,
+            }]);
           }
           
           // Pre-fill lessons
@@ -397,6 +425,66 @@ function NewCourse({ courseId = null }) {
 
   const handleAddFaq = () => {
     setFaqs([...faqs, { question: "", answer: "" }]);
+  };
+
+  const handleResourceChange = (index, field) => (e) => {
+    const newResources = [...courseResources];
+    if (field === "file") {
+      const file = e.target.files[0];
+      if (file) {
+        // Validate file type
+        const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
+        if (!allowedTypes.includes(file.type)) {
+          Swal.fire({
+            icon: "error",
+            title: "Invalid File Type",
+            text: "Only PDF, JPEG, and PNG files are allowed",
+          });
+          return;
+        }
+        // Validate file size (10MB max)
+        if (file.size > 10 * 1024 * 1024) {
+          Swal.fire({
+            icon: "error",
+            title: "File Too Large",
+            text: "File size must be less than 10MB",
+          });
+          return;
+        }
+        newResources[index].file = file;
+        // Auto-detect file type
+        if (file.type === "application/pdf") {
+          newResources[index].fileType = "PDF";
+        } else if (file.type === "image/jpeg") {
+          newResources[index].fileType = "JPEG";
+        } else if (file.type === "image/png") {
+          newResources[index].fileType = "PNG";
+        }
+      }
+    } else {
+      newResources[index][field] = e.target.value;
+    }
+    setCourseResources(newResources);
+  };
+
+  const handleAddResource = () => {
+    setCourseResources([
+      ...courseResources,
+      {
+        name: "",
+        description: "",
+        fileType: "",
+        file: null,
+        fileUrl: null,
+      },
+    ]);
+  };
+
+  const handleRemoveResource = (index) => {
+    if (courseResources.length > 1) {
+      const newResources = courseResources.filter((_, i) => i !== index);
+      setCourseResources(newResources);
+    }
   };
 
   const handleLessonChange = (index, field) => (e) => {
@@ -815,6 +903,23 @@ function NewCourse({ courseId = null }) {
       formData.append('keywords', JSON.stringify(courseKeywords || []));
       formData.append('faqs', JSON.stringify(faqs.filter(faq => faq.question.trim() && faq.answer.trim())));
       
+      // Add course resources
+      const resourcesData = courseResources
+        .filter(resource => resource.name.trim() && (resource.file || resource.fileUrl))
+        .map((resource) => ({
+          name: resource.name,
+          description: resource.description,
+          fileType: resource.fileType,
+        }));
+      formData.append('resources', JSON.stringify(resourcesData));
+      
+      // Add resource files
+      courseResources.forEach((resource) => {
+        if (resource.file) {
+          formData.append('resourceFiles', resource.file);
+        }
+      });
+      
       // Prepare lessons data (without video files, they'll be added separately)
       const lessonsData = lessons.map(lesson => ({
         lessonName: lesson.lessonName,
@@ -916,6 +1021,23 @@ function NewCourse({ courseId = null }) {
       formData.append('skills', JSON.stringify(courseData.skills || []));
       formData.append('keywords', JSON.stringify(courseKeywords || []));
       formData.append('faqs', JSON.stringify(faqs.filter(faq => faq.question.trim() && faq.answer.trim())));
+      
+      // Add course resources
+      const resourcesData = courseResources
+        .filter(resource => resource.name.trim() && (resource.file || resource.fileUrl))
+        .map((resource) => ({
+          name: resource.name,
+          description: resource.description,
+          fileType: resource.fileType,
+        }));
+      formData.append('resources', JSON.stringify(resourcesData));
+      
+      // Add resource files
+      courseResources.forEach((resource) => {
+        if (resource.file) {
+          formData.append('resourceFiles', resource.file);
+        }
+      });
       
       // Prepare lessons data
       const lessonsData = lessons.map(lesson => ({
@@ -1418,6 +1540,196 @@ function NewCourse({ courseId = null }) {
                   />
                 </Grid>
               </Grid>
+            </Box>
+
+            {/* Course Resources Section */}
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="h6" fontWeight={600} mb={1}>
+                Course Resources
+              </Typography>
+              <Typography variant="body2" color="text.secondary" mb={3}>
+                Upload PDF Handouts or resources you have
+              </Typography>
+
+              {courseResources.map((resource, index) => (
+                <Box key={index} mb={4}>
+                  <Grid container spacing={3}>
+                    {/* Left Side - File Upload Area */}
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Box
+                        sx={{
+                          border: "2px dashed",
+                          borderColor: greenColor,
+                          borderRadius: 2,
+                          bgcolor: "#F1FBF8",
+                          p: 4,
+                          textAlign: "center",
+                          position: "relative",
+                          minHeight: 300,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {resource.file || resource.fileUrl ? (
+                          <Box>
+                            <CheckCircleRoundedIcon
+                              sx={{ fontSize: 48, color: greenColor, mb: 2 }}
+                            />
+                            <Typography variant="body2" fontWeight={500} mb={1}>
+                              {resource.file?.name || "File Uploaded"}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {resource.file
+                                ? `${(resource.file.size / 1024 / 1024).toFixed(2)} MB`
+                                : "Existing file"}
+                            </Typography>
+                            <Button
+                              component="label"
+                              variant="outlined"
+                              size="small"
+                              sx={{ mt: 2, textTransform: "none" }}
+                            >
+                              Change File
+                              <input
+                                type="file"
+                                hidden
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                onChange={handleResourceChange(index, "file")}
+                              />
+                            </Button>
+                          </Box>
+                        ) : (
+                          <>
+                            <CloudUploadRoundedIcon
+                              sx={{ fontSize: 48, color: greenColor, mb: 2 }}
+                            />
+                            <Typography variant="body2" fontWeight={500} mb={1}>
+                              Drag & Drop File to Upload
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" mb={2}>
+                              Max File Size: Up to 10MB
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" mb={2}>
+                              Supported Formats: PDF, JPEG, PNG
+                            </Typography>
+                            <Button
+                              component="label"
+                              variant="contained"
+                              sx={{
+                                bgcolor: greenColor,
+                                textTransform: "none",
+                                "&:hover": { bgcolor: greenColor },
+                              }}
+                            >
+                              Select File
+                              <input
+                                type="file"
+                                hidden
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                onChange={handleResourceChange(index, "file")}
+                              />
+                            </Button>
+                          </>
+                        )}
+                      </Box>
+                    </Grid>
+
+                    {/* Right Side - Resource Details */}
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Stack spacing={2}>
+                        <Box>
+                          <Typography variant="body2" fontWeight={500} mb={1}>
+                            Resource or Handout Name
+                          </Typography>
+                          <TextField
+                            fullWidth
+                            placeholder="eg: Complete Agentic AI Engineering Handout"
+                            value={resource.name}
+                            onChange={handleResourceChange(index, "name")}
+                            sx={{
+                              "& .MuiOutlinedInput-root": {
+                                borderRadius: 2,
+                              },
+                            }}
+                          />
+                        </Box>
+
+                        <Box>
+                          <Typography variant="body2" fontWeight={500} mb={1}>
+                            Short Description
+                          </Typography>
+                          <TextField
+                            fullWidth
+                            multiline
+                            rows={3}
+                            placeholder="eg: Comprehensive guide with all concepts and examples"
+                            value={resource.description}
+                            onChange={handleResourceChange(index, "description")}
+                            sx={{
+                              "& .MuiOutlinedInput-root": {
+                                borderRadius: 2,
+                              },
+                            }}
+                          />
+                        </Box>
+
+                        <Box>
+                          <Typography variant="body2" fontWeight={500} mb={1}>
+                            File Type
+                          </Typography>
+                          <FormControl fullWidth>
+                            <Select
+                              value={resource.fileType}
+                              onChange={handleResourceChange(index, "fileType")}
+                              displayEmpty
+                              sx={{
+                                borderRadius: 2,
+                              }}
+                            >
+                              <MenuItem value="" disabled>
+                                eg: PDF, JPEG, PNG
+                              </MenuItem>
+                              <MenuItem value="PDF">PDF</MenuItem>
+                              <MenuItem value="JPEG">JPEG</MenuItem>
+                              <MenuItem value="PNG">PNG</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Box>
+
+                        {courseResources.length > 1 && (
+                          <Button
+                            startIcon={<DeleteRoundedIcon />}
+                            onClick={() => handleRemoveResource(index)}
+                            sx={{
+                              color: "error.main",
+                              textTransform: "none",
+                              alignSelf: "flex-start",
+                            }}
+                          >
+                            Remove Resource
+                          </Button>
+                        )}
+                      </Stack>
+                    </Grid>
+                  </Grid>
+                </Box>
+              ))}
+
+              <Button
+                startIcon={<AddRoundedIcon />}
+                onClick={handleAddResource}
+                sx={{
+                  color: greenColor,
+                  textTransform: "none",
+                  "&:hover": {
+                    backgroundColor: "#F1FBF8",
+                  },
+                }}
+              >
+                 Add Another Resource or Handout
+              </Button>
             </Box>
 
             {/* FAQs Section */}

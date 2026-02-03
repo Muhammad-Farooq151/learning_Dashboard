@@ -31,6 +31,8 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import { useRouter } from "next/navigation";
 import { greenColor } from "@/components/utils/Colors";
 import Link from "next/link";
@@ -892,9 +894,120 @@ function CourseLearningPage({ courseId, course }) {
                 <Typography variant="h6" fontWeight={600} gutterBottom>
                   Course Resources
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                  Additional resources and materials will be available here.
-                </Typography>
+                
+                {course?.fullData?.resources && course.fullData.resources.length > 0 ? (
+                  <Stack spacing={2} sx={{ mt: 3 }}>
+                    {course.fullData.resources.map((resource, index) => (
+                      <Card
+                        key={resource._id || index}
+                        sx={{
+                          borderRadius: 2,
+                          boxShadow: "0px 2px 8px rgba(0,0,0,0.06)",
+                          "&:hover": {
+                            boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
+                          },
+                        }}
+                      >
+                        <CardContent sx={{ p: 3 }}>
+                          <Box
+                            display="flex"
+                            alignItems="flex-start"
+                            justifyContent="space-between"
+                            gap={2}
+                          >
+                            {/* Left Side - Icon and Info */}
+                            <Box display="flex" gap={2} flex={1}>
+                              <Box
+                                sx={{
+                                  bgcolor: "#F1FBF8",
+                                  borderRadius: 2,
+                                  p: 1.5,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  minWidth: 48,
+                                  height: 48,
+                                }}
+                              >
+                                <DescriptionOutlinedIcon
+                                  sx={{ fontSize: 28, color: greenColor }}
+                                />
+                              </Box>
+                              
+                              <Box flex={1}>
+                                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                                  {resource.name}
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  color="text.secondary"
+                                  sx={{ mb: 1.5 }}
+                                >
+                                  {resource.description || "No description available"}
+                                </Typography>
+                                
+                                {/* File Details */}
+                                <Box display="flex" gap={1} flexWrap="wrap">
+                                  {resource.fileType && (
+                                    <Chip
+                                      label={resource.fileType}
+                                      size="small"
+                                      sx={{
+                                        bgcolor: "#F3F4F6",
+                                        color: "#374151",
+                                        fontWeight: 500,
+                                        fontSize: "0.75rem",
+                                      }}
+                                    />
+                                  )}
+                                </Box>
+                              </Box>
+                            </Box>
+                            
+                            {/* Right Side - Download Button */}
+                            <Button
+                              variant="contained"
+                              startIcon={<DownloadRoundedIcon />}
+                              href={resource.fileUrl}
+                              download
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{
+                                bgcolor: greenColor,
+                                textTransform: "none",
+                                px: 3,
+                                "&:hover": {
+                                  bgcolor: greenColor,
+                                  opacity: 0.9,
+                                },
+                              }}
+                            >
+                              Download
+                            </Button>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Box
+                    sx={{
+                      textAlign: "center",
+                      py: 6,
+                      px: 3,
+                    }}
+                  >
+                    <DescriptionOutlinedIcon
+                      sx={{ fontSize: 64, color: "text.secondary", mb: 2, opacity: 0.5 }}
+                    />
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      No Resources Available
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Additional resources and materials will be available here.
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             )}
 
