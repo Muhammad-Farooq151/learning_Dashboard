@@ -215,6 +215,7 @@ function AdminsManagement() {
                       <TableCell>Name</TableCell>
                       <TableCell>Email</TableCell>
                       <TableCell>Phone Number</TableCell>
+                      <TableCell>Role</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Created At</TableCell>
                       <TableCell align="right">Actions</TableCell>
@@ -237,6 +238,17 @@ function AdminsManagement() {
                           <Typography variant="body2">
                             {admin.phoneNumber || "N/A"}
                           </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={admin.role || "Admin"}
+                            size="small"
+                            sx={{
+                              bgcolor: "#E3F2FD",
+                              color: "#1976D2",
+                              fontWeight: 500,
+                            }}
+                          />
                         </TableCell>
                         <TableCell>
                           <Chip

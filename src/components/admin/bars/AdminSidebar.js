@@ -12,12 +12,6 @@ import {
   ListItemText,
   Divider,
   IconButton,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
 } from "@mui/material";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
@@ -28,7 +22,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import PowerSettingsNewOutlinedIcon from "@mui/icons-material/PowerSettingsNewOutlined";
 import { ClipLoader } from "react-spinners";
 import { greenColor } from "@/components/utils/Colors";
-import { toast } from "react-hot-toast";
+import Swal from "sweetalert2";
 import { clearAuthToken } from "@/utils/authStorage";
 import { SupervisedUserCircle } from "@mui/icons-material";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
@@ -95,10 +89,8 @@ export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [navLoading, setNavLoading] = useState(false);
-  const [logoutLoading, setLogoutLoading] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [navigationStartPath, setNavigationStartPath] = useState(null);
-  const isLoading = navLoading || logoutLoading;
+  const isLoading = navLoading;
 
   const activeKey = useMemo(() => {
     let best = "";
@@ -148,22 +140,57 @@ export default function AdminSidebar() {
     [router, pathname]
   );
 
-  const handleLogoutRequest = () => setConfirmOpen(true);
-  const handleCancelLogout = () => {
-    if (!logoutLoading) setConfirmOpen(false);
-  };
+  const handleLogoutRequest = useCallback(async () => {
+    const result = await Swal.fire({
+      title: 'Confirm Logout',
+      text: 'Are you sure you want to logout? This will clear your saved session from this device.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: 'Yes, Logout',
+      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+    });
 
-  const performLogout = useCallback(async () => {
-    setConfirmOpen(false);
-    setLogoutLoading(true);
-    try {
-      clearAuthToken();
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      toast.success("Logged out successfully");
-      router.push("/");
-    } catch (error) {
-      setLogoutLoading(false);
-      toast.error("Failed to logout. Please try again.");
+    if (result.isConfirmed) {
+      // Show loading
+      Swal.fire({
+        title: 'Logging out...',
+        text: 'Please wait while we log you out.',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      try {
+        // Simulate logout process
+        clearAuthToken();
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        // Show success
+        await Swal.fire({
+          icon: 'success',
+          title: 'Logged Out!',
+          text: 'You have been successfully logged out.',
+          confirmButtonColor: greenColor,
+          confirmButtonText: 'OK',
+        });
+
+        // Redirect to admin login
+        router.push("/admin-login");
+      } catch (error) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Logout Failed',
+          text: 'Failed to logout. Please try again.',
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'OK',
+        });
+      }
     }
   }, [router]);
 
@@ -224,29 +251,6 @@ export default function AdminSidebar() {
           </Typography>
         </Stack>
       </Box>
-
-      <Dialog open={confirmOpen} onClose={handleCancelLogout} maxWidth="xs" fullWidth>
-        <DialogTitle fontWeight={700}>Confirm Logout</DialogTitle>
-        <DialogContent>
-          <DialogContentText color="text.primary">
-            Are you sure you want to logout? This will clear your saved session from this device.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCancelLogout} sx={{ textTransform: "none" }} disabled={logoutLoading}>
-            Cancel
-          </Button>
-          <Button
-            onClick={performLogout}
-            variant="contained"
-            color="error"
-            sx={{ textTransform: "none" }}
-            disabled={logoutLoading}
-          >
-            Logout
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Full-viewport overlay loader (same page) */}
       {isLoading && (

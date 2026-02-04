@@ -20,6 +20,7 @@ const sanitizeUser = (user = {}) => {
     fullName: user.fullName || "",
     email: user.email || "",
     phoneNumber: user.phoneNumber || "",
+    role: user.role || "user", // Include role in sanitized user
   };
 };
 
