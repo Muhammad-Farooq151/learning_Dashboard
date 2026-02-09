@@ -627,7 +627,7 @@ function CourseLearningPage({ courseId, course }) {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: "#F5F7FB", minHeight: "100vh" }}>
+    <Box sx={{ p: { xs: 2, md: 4 }, minHeight: "100vh" }}>
       <Stack spacing={3}>
         {/* Header */}
         <Box display="flex" alignItems="center" justifyContent="space-between">
