@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   Box,
   Stack,
@@ -90,7 +91,30 @@ export default function AdminSidebar() {
   const router = useRouter();
   const [navLoading, setNavLoading] = useState(false);
   const [navigationStartPath, setNavigationStartPath] = useState(null);
+  const [mounted, setMounted] = useState(false);
   const isLoading = navLoading;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Prevent body scroll when loading
+  useEffect(() => {
+    if (isLoading) {
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+    } else {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    };
+  }, [isLoading]);
 
   const activeKey = useMemo(() => {
     let best = "";
@@ -252,21 +276,78 @@ export default function AdminSidebar() {
         </Stack>
       </Box>
 
-      {/* Full-viewport overlay loader (same page) */}
-      {isLoading && (
+      {/* Full-viewport overlay loader - Revamped with Portal (Light Background) */}
+      {isLoading && mounted && createPortal(
         <Box
+          component="div"
           sx={{
             position: "fixed",
-            inset: 0,
-            zIndex: 99999,
-            display: "grid",
-            placeItems: "center",
-            backgroundColor: "rgba(255,255,255,0.75)",
-            backdropFilter: "blur(1.5px)",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: "100vw",
+            height: "100vh",
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(255, 255, 255, 0.6)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            pointerEvents: "all",
+            isolation: "isolate",
+            overflow: "hidden",
+            // Ensure it's above everything
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(255, 255, 255, 0.6)",
+              zIndex: -1,
+            },
+          }}
+          style={{
+            zIndex: 999999,
           }}
         >
-          <ClipLoader size={60} color={greenColor} />
-        </Box>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+              pointerEvents: "auto",
+              position: "relative",
+              zIndex: 1000000,
+            }}
+          >
+            <ClipLoader size={60} color={greenColor} />
+            <Typography
+              variant="body2"
+              sx={{
+                color: greenColor,
+                fontWeight: 600,
+                animation: "pulse 2s ease-in-out infinite",
+                "@keyframes pulse": {
+                  "0%, 100%": {
+                    opacity: 1,
+                  },
+                  "50%": {
+                    opacity: 0.5,
+                  },
+                },
+              }}
+            >
+              Loading...
+            </Typography>
+          </Box>
+        </Box>,
+        document.body
       )}
     </>
   );
