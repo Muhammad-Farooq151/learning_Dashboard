@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Card,
@@ -19,6 +19,8 @@ import {
   Stack,
   Alert,
   Grid,
+  Chip,
+  CircularProgress,
 } from "@mui/material";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
@@ -28,10 +30,15 @@ import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
+import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
+import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import "@/components/user/settings/settings-phone-input.css";
 import { greenColor } from "@/utils/Colors";
+import { getStoredUser } from "@/utils/authStorage";
+import { getJSON } from "@/utils/http";
 
 const GreenSwitch = ({ checked, onChange, ...props }) => (
   <Switch
@@ -50,6 +57,8 @@ const GreenSwitch = ({ checked, onChange, ...props }) => (
 );
 
 function AdminSettings() {
+  const [adminInfo, setAdminInfo] = useState(null);
+  const [loadingAdmin, setLoadingAdmin] = useState(true);
   const [profileData, setProfileData] = useState({
     fullName: "",
     email: "",
@@ -113,6 +122,83 @@ function AdminSettings() {
     });
   };
 
+  // Load admin information
+  useEffect(() => {
+    const loadAdminInfo = async () => {
+      try {
+        setLoadingAdmin(true);
+        const storedUser = getStoredUser();
+        
+        if (storedUser?.id) {
+          // Fetch full admin details from API
+          try {
+            const response = await getJSON(`admins/${storedUser.id}`);
+            if (response.success && response.data) {
+              setAdminInfo(response.data);
+              // Populate form with admin data
+              setProfileData({
+                fullName: response.data.fullName || "",
+                email: response.data.email || "",
+                phoneNumber: response.data.phoneNumber || "",
+              });
+            } else {
+              // Fallback to stored user data
+              setAdminInfo({
+                fullName: storedUser.fullName || "",
+                email: storedUser.email || "",
+                phoneNumber: storedUser.phoneNumber || "",
+                role: storedUser.role || "admin",
+              });
+              setProfileData({
+                fullName: storedUser.fullName || "",
+                email: storedUser.email || "",
+                phoneNumber: storedUser.phoneNumber || "",
+              });
+            }
+          } catch (error) {
+            // Fallback to stored user data if API fails
+            setAdminInfo({
+              fullName: storedUser.fullName || "",
+              email: storedUser.email || "",
+              phoneNumber: storedUser.phoneNumber || "",
+              role: storedUser.role || "admin",
+            });
+            setProfileData({
+              fullName: storedUser.fullName || "",
+              email: storedUser.email || "",
+              phoneNumber: storedUser.phoneNumber || "",
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error loading admin info:", error);
+      } finally {
+        setLoadingAdmin(false);
+      }
+    };
+
+    loadAdminInfo();
+  }, []);
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  const getInitials = (name) => {
+    if (!name) return "A";
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
   return (
     <Box sx={{ p: { xs: 2, md: 4 } }}>
       <Typography variant="h4" fontWeight={700} mb={1}>
@@ -121,6 +207,83 @@ function AdminSettings() {
       <Typography variant="body1" color="text.secondary" mb={4}>
         Manage platform settings and configurations
       </Typography>
+
+      {/* Admin Information Card */}
+      {loadingAdmin ? (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+          <CircularProgress />
+        </Box>
+      ) : adminInfo ? (
+        <Card
+          sx={{
+            borderRadius: 4,
+            border: "1px solid #EDF1F7",
+            boxShadow: "none",
+            mb: 3,
+            background: `linear-gradient(135deg, ${greenColor}15 0%, ${greenColor}05 100%)`,
+          }}
+        >
+          <CardContent sx={{ p: 3 }}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Avatar
+                sx={{
+                  width: 80,
+                  height: 80,
+                  bgcolor: greenColor,
+                  fontSize: "1.5rem",
+                  fontWeight: 600,
+                }}
+              >
+                {getInitials(adminInfo.fullName)}
+              </Avatar>
+              <Box flex={1}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                  <Typography variant="h5" fontWeight={700}>
+                    {adminInfo.fullName || "Admin User"}
+                  </Typography>
+                  <Chip
+                    icon={<AdminPanelSettingsOutlinedIcon />}
+                    label="Administrator"
+                    size="small"
+                    sx={{
+                      bgcolor: greenColor,
+                      color: "white",
+                      fontWeight: 600,
+                      "& .MuiChip-icon": {
+                        color: "white",
+                      },
+                    }}
+                  />
+                </Stack>
+                <Stack spacing={1} mt={1}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <EmailOutlinedIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                    <Typography variant="body2" color="text.secondary">
+                      {adminInfo.email || "N/A"}
+                    </Typography>
+                  </Stack>
+                  {adminInfo.phoneNumber && (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <PhoneRoundedIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                      <Typography variant="body2" color="text.secondary">
+                        {adminInfo.phoneNumber}
+                      </Typography>
+                    </Stack>
+                  )}
+                  {adminInfo.createdAt && (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CalendarTodayRoundedIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Member since {formatDate(adminInfo.createdAt)}
+                      </Typography>
+                    </Stack>
+                  )}
+                </Stack>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Profile Section */}
       <Card
@@ -145,7 +308,7 @@ function AdminSettings() {
               </Typography>
             </Stack>
             <Typography variant="body2" color="text.secondary">
-              Member since January 2024
+              {adminInfo?.createdAt ? `Member since ${formatDate(adminInfo.createdAt)}` : "Update your profile"}
             </Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary" mb={3}>
@@ -162,10 +325,11 @@ function AdminSettings() {
                 width: 100,
                 height: 100,
                 bgcolor: greenColor,
+                fontSize: "2rem",
+                fontWeight: 600,
               }}
-              src="/api/placeholder/100/100"
             >
-              JD
+              {getInitials(profileData.fullName || adminInfo?.fullName)}
             </Avatar>
         <Button
         fullWidth

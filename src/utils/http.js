@@ -1,6 +1,7 @@
 "use client";
 
 import axios from 'axios';
+import { getStoredToken } from './authStorage';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -11,6 +12,20 @@ const axiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Request interceptor to add authentication token
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = getStoredToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // Response interceptor for error handling
 axiosInstance.interceptors.response.use(
