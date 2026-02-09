@@ -173,7 +173,7 @@ function ExploreCourses() {
   }, [search, statusFilter, instructorFilter, courses]);
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: "1200px", mx: "auto" }}>
+    <Box sx={{ p: { xs: 2, md: 4 } }}>
       <Stack spacing={3}>
         <Box>
           <Typography variant="h4" fontWeight={600}>
