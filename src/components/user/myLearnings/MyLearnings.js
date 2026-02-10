@@ -44,18 +44,113 @@ function MyLearnings() {
         if (!mounted) return;
 
         if (response?.success && Array.isArray(response.data)) {
-          // For now, treat all enrolled courses as "In Progress"
-          const inProgress = response.data.map((course) => ({
-            id: course.id,
-            title: course.title,
-            desc: course.description,
-            progress: 0,
-            img: course.thumbnailUrl || "/images/default-course.png",
-          }));
+          // Fetch progress for each course
+          const coursesWithProgress = await Promise.all(
+            response.data.map(async (course) => {
+              try {
+                // Fetch full course details to get all lessons
+                const courseDetailsResponse = await getJSON(`courses/${course.id}`);
+                if (!courseDetailsResponse?.success || !courseDetailsResponse.data) {
+                  return {
+                    id: course.id,
+                    title: course.title,
+                    desc: course.description,
+                    progress: 0,
+                    img: course.thumbnailUrl || "/images/default-course.png",
+                    isComplete: false,
+                  };
+                }
+
+                const courseDetails = courseDetailsResponse.data;
+                const allLessons = courseDetails.lessons || [];
+
+                if (allLessons.length === 0) {
+                  return {
+                    id: course.id,
+                    title: course.title,
+                    desc: course.description,
+                    progress: 0,
+                    img: course.thumbnailUrl || "/images/default-course.png",
+                    isComplete: false,
+                  };
+                }
+
+                // Fetch progress for this course
+                const progressResponse = await getJSON(`progress/${course.id}?userId=${userId}`);
+                if (!progressResponse?.success || !progressResponse.data) {
+                  return {
+                    id: course.id,
+                    title: course.title,
+                    desc: course.description,
+                    progress: 0,
+                    img: course.thumbnailUrl || "/images/default-course.png",
+                    isComplete: false,
+                  };
+                }
+
+                const progress = progressResponse.data;
+                const progressLessons = progress.lessons || [];
+
+                // Create a map of lessonId to progress for quick lookup
+                const progressMap = {};
+                progressLessons.forEach((lp) => {
+                  const lessonIdStr = lp.lessonId?.toString() || lp.lessonId;
+                  progressMap[lessonIdStr] = lp;
+                });
+
+                // Check each lesson from the course against progress data
+                let completedCount = 0;
+                allLessons.forEach((lesson) => {
+                  const lessonIdStr = lesson._id?.toString() || lesson._id;
+                  const lessonProgress = progressMap[lessonIdStr];
+                  // Only count as completed if explicitly marked as completed in database
+                  if (lessonProgress && lessonProgress.completed === true) {
+                    completedCount++;
+                  }
+                });
+
+                // Calculate progress percentage based on all lessons
+                const progressPercentage =
+                  allLessons.length > 0
+                    ? Math.round((completedCount / allLessons.length) * 100)
+                    : 0;
+
+                // Check if course is 100% complete (all lessons must be completed)
+                const isComplete = completedCount === allLessons.length && allLessons.length > 0;
+
+                return {
+                  id: course.id,
+                  title: course.title,
+                  desc: course.description,
+                  progress: progressPercentage,
+                  img: course.thumbnailUrl || "/images/default-course.png",
+                  isComplete: isComplete,
+                  completedLessons: completedCount,
+                  totalLessons: allLessons.length,
+                };
+              } catch (error) {
+                console.error(`Error fetching progress for course ${course.id}:`, error);
+                return {
+                  id: course.id,
+                  title: course.title,
+                  desc: course.description,
+                  progress: 0,
+                  img: course.thumbnailUrl || "/images/default-course.png",
+                  isComplete: false,
+                  completedLessons: 0,
+                  totalLessons: 0,
+                };
+              }
+            })
+          );
+
+          // Separate into in progress and completed
+          const inProgress = coursesWithProgress.filter((c) => !c.isComplete);
+          const completed = coursesWithProgress.filter((c) => c.isComplete);
 
           setCourses({
             inProgress,
-            completed: [],
+            completed,
           });
           toast.success("Courses loaded successfully!", { id: "courses" });
         } else {
@@ -124,25 +219,17 @@ function MyLearnings() {
         </Typography>
      </Box>
 
-           <Box sx={{ mt: 2, display: "flex", gap: 2 }}>
-          {completed ? (
-            <>
-              <Button size="small">Add To LinkedIn</Button>
-              <Button size="small">Rate Us</Button>
-              <Button size="small">Download</Button>
-            </>
-          ) : (
-            <Button
-              variant="contained"
-              onClick={() => router.push(`/user/my-leaning/${course.id}`)}
-              sx={{
-                backgroundColor: greenColor,
-                "&:hover": { opacity: 0.9, backgroundColor: greenColor },
-              }}
-            >
-              Continue
-            </Button>
-          )}
+           <Box sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap" }}>
+          <Button
+            variant="contained"
+            onClick={() => router.push(`/user/my-leaning/${course.id}`)}
+            sx={{
+              backgroundColor: greenColor,
+              "&:hover": { opacity: 0.9, backgroundColor: greenColor },
+            }}
+          >
+            {completed ? "View Course" : "Continue"}
+          </Button>
         </Box>
 
    </Box>
@@ -161,6 +248,11 @@ function MyLearnings() {
           />
           <Typography variant="body2" sx={{ mt: 1 }}>
             Progress: {course.progress}%
+            {course.totalLessons > 0 && (
+              <span style={{ color: "#666", marginLeft: 8 }}>
+                ({course.completedLessons || 0} of {course.totalLessons} modules completed)
+              </span>
+            )}
           </Typography>
         </Box>
      

@@ -101,7 +101,9 @@ function CourseLearningPage({ courseId, course }) {
           const progressMap = {};
           if (progressData.lessons && Array.isArray(progressData.lessons)) {
             progressData.lessons.forEach((lesson) => {
-              progressMap[lesson.lessonId] = {
+              // Convert lessonId to string for consistent matching
+              const lessonIdStr = lesson.lessonId?.toString() || lesson.lessonId;
+              progressMap[lessonIdStr] = {
                 watched: lesson.watched || 0,
                 completed: lesson.completed || false,
               };
@@ -161,7 +163,8 @@ function CourseLearningPage({ courseId, course }) {
 
     // Group lessons into a single section (or you can group by category if needed)
     const lessons = course.fullData.lessons.map((lesson, index) => {
-      const lessonId = lesson._id || index;
+      // Convert lessonId to string for consistent matching with progress data
+      const lessonId = lesson._id ? lesson._id.toString() : index.toString();
       const progress = lessonProgress[lessonId] || { watched: 0, completed: false };
       const progressPercent = lesson.duration > 0 
         ? Math.min(100, Math.round((progress.watched / lesson.duration) * 100))
@@ -209,13 +212,20 @@ function CourseLearningPage({ courseId, course }) {
     [curriculum]
   );
 
-  // Calculate overall course progress
+  // Calculate overall course progress - use database completed flag as source of truth
   const courseProgress = useMemo(() => {
     if (!curriculum.sections.length || !totalLessons) return 0;
     const allLessons = curriculum.sections.flatMap((s) => s.lessons);
-    const completedLessons = allLessons.filter((l) => l.completed).length;
+    // Only count lessons where completed flag is true in database (not just 90% watched)
+    const completedLessons = allLessons.filter((l) => {
+      // Ensure lessonId is string for matching
+      const lessonId = l.id?.toString() || l.id;
+      const progress = lessonProgress[lessonId];
+      // Use database completed flag as source of truth
+      return progress?.completed === true;
+    }).length;
     return Math.round((completedLessons / totalLessons) * 100);
-  }, [curriculum, totalLessons]);
+  }, [curriculum, totalLessons, lessonProgress]);
 
   // Video ref for tracking
   const videoRef = useRef(null);
