@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   Box,
   Stack,
@@ -12,12 +13,6 @@ import {
   ListItemText,
   Divider,
   IconButton,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
 } from "@mui/material";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
@@ -28,16 +23,18 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import PowerSettingsNewOutlinedIcon from "@mui/icons-material/PowerSettingsNewOutlined";
 import { ClipLoader } from "react-spinners";
 import { greenColor } from "@/components/utils/Colors";
-import { toast } from "react-hot-toast";
+import Swal from "sweetalert2";
 import { clearAuthToken } from "@/utils/authStorage";
 import { SupervisedUserCircle } from "@mui/icons-material";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 
 const NAV = [
   { label: "Dashboard", href: "/admin/dashboard", icon: <DashboardRoundedIcon /> },
   { label: "Courses", href: "/admin/courses", icon: <MenuBookOutlinedIcon /> },
   { label: "Users", href: "/admin/users", icon: <SupervisedUserCircle /> },
   { label: "Tutors", href: "/admin/tutors", icon: <SchoolOutlinedIcon /> },
+  { label: "Admins", href: "/admin/admins", icon: <AdminPanelSettingsOutlinedIcon /> },
   { label: "Refunds", href: "/admin/refunds", icon: <WorkspacePremiumOutlinedIcon /> },
   { label: "Settings", href: "/admin/settings", icon: <SettingsOutlinedIcon /> },
 ];
@@ -93,10 +90,31 @@ export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [navLoading, setNavLoading] = useState(false);
-  const [logoutLoading, setLogoutLoading] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [navigationStartPath, setNavigationStartPath] = useState(null);
-  const isLoading = navLoading || logoutLoading;
+  const [mounted, setMounted] = useState(false);
+  const isLoading = navLoading;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Prevent body scroll when loading
+  useEffect(() => {
+    if (isLoading) {
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+    } else {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    };
+  }, [isLoading]);
 
   const activeKey = useMemo(() => {
     let best = "";
@@ -146,22 +164,57 @@ export default function AdminSidebar() {
     [router, pathname]
   );
 
-  const handleLogoutRequest = () => setConfirmOpen(true);
-  const handleCancelLogout = () => {
-    if (!logoutLoading) setConfirmOpen(false);
-  };
+  const handleLogoutRequest = useCallback(async () => {
+    const result = await Swal.fire({
+      title: 'Confirm Logout',
+      text: 'Are you sure you want to logout? This will clear your saved session from this device.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: 'Yes, Logout',
+      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+    });
 
-  const performLogout = useCallback(async () => {
-    setConfirmOpen(false);
-    setLogoutLoading(true);
-    try {
-      clearAuthToken();
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      toast.success("Logged out successfully");
-      router.push("/");
-    } catch (error) {
-      setLogoutLoading(false);
-      toast.error("Failed to logout. Please try again.");
+    if (result.isConfirmed) {
+      // Show loading
+      Swal.fire({
+        title: 'Logging out...',
+        text: 'Please wait while we log you out.',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      try {
+        // Simulate logout process
+        clearAuthToken();
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        // Show success
+        await Swal.fire({
+          icon: 'success',
+          title: 'Logged Out!',
+          text: 'You have been successfully logged out.',
+          confirmButtonColor: greenColor,
+          confirmButtonText: 'OK',
+        });
+
+        // Redirect to admin login
+        router.push("/admin-login");
+      } catch (error) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Logout Failed',
+          text: 'Failed to logout. Please try again.',
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'OK',
+        });
+      }
     }
   }, [router]);
 
@@ -223,44 +276,78 @@ export default function AdminSidebar() {
         </Stack>
       </Box>
 
-      <Dialog open={confirmOpen} onClose={handleCancelLogout} maxWidth="xs" fullWidth>
-        <DialogTitle fontWeight={700}>Confirm Logout</DialogTitle>
-        <DialogContent>
-          <DialogContentText color="text.primary">
-            Are you sure you want to logout? This will clear your saved session from this device.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCancelLogout} sx={{ textTransform: "none" }} disabled={logoutLoading}>
-            Cancel
-          </Button>
-          <Button
-            onClick={performLogout}
-            variant="contained"
-            color="error"
-            sx={{ textTransform: "none" }}
-            disabled={logoutLoading}
-          >
-            Logout
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Full-viewport overlay loader (same page) */}
-      {isLoading && (
+      {/* Full-viewport overlay loader - Revamped with Portal (Light Background) */}
+      {isLoading && mounted && createPortal(
         <Box
+          component="div"
           sx={{
             position: "fixed",
-            inset: 0,
-            zIndex: 99999,
-            display: "grid",
-            placeItems: "center",
-            backgroundColor: "rgba(255,255,255,0.75)",
-            backdropFilter: "blur(1.5px)",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: "100vw",
+            height: "100vh",
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(255, 255, 255, 0.6)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            pointerEvents: "all",
+            isolation: "isolate",
+            overflow: "hidden",
+            // Ensure it's above everything
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(255, 255, 255, 0.6)",
+              zIndex: -1,
+            },
+          }}
+          style={{
+            zIndex: 999999,
           }}
         >
-          <ClipLoader size={60} color={greenColor} />
-        </Box>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+              pointerEvents: "auto",
+              position: "relative",
+              zIndex: 1000000,
+            }}
+          >
+            <ClipLoader size={60} color={greenColor} />
+            <Typography
+              variant="body2"
+              sx={{
+                color: greenColor,
+                fontWeight: 600,
+                animation: "pulse 2s ease-in-out infinite",
+                "@keyframes pulse": {
+                  "0%, 100%": {
+                    opacity: 1,
+                  },
+                  "50%": {
+                    opacity: 0.5,
+                  },
+                },
+              }}
+            >
+              Loading...
+            </Typography>
+          </Box>
+        </Box>,
+        document.body
       )}
     </>
   );
