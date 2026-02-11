@@ -809,31 +809,59 @@ export default function Certifications() {
           throw new Error(response?.message || "Failed to submit feedback");
         }
       } catch (e) {
-        console.error("Error submitting feedback:", e);
-        
         // Check if it's a duplicate feedback error
         const errorMessage = e.message || e.response?.data?.message || "Failed to submit feedback. Please try again.";
         const isDuplicate = errorMessage.toLowerCase().includes("already") || 
                            errorMessage.toLowerCase().includes("already submitted") ||
                            (e.response?.status === 400 && e.response?.data?.data?.existing === true);
         
-        Swal.fire({
-          icon: isDuplicate ? "info" : "error",
-          title: isDuplicate ? "Already Given" : "Submission Failed",
-          text: isDuplicate 
-            ? "You have already submitted feedback for this course. Thank you for your feedback!" 
-            : errorMessage,
-          confirmButtonColor: palette.green,
-        });
+        // Only log non-duplicate errors
+        if (!isDuplicate) {
+          console.error("Error submitting feedback:", e);
+        }
         
-        // If duplicate, update certificate status
+        // For duplicate feedback, show MUI Alert in dialog instead of SweetAlert
         if (isDuplicate) {
+          // Update certificate to mark feedback as submitted
           setCertificates((prev) =>
             prev.map((cert) =>
               cert.id === activeCert.id ? { ...cert, hasFeedback: true } : cert
             )
           );
-          closeRate();
+          
+          // Reload existing feedback to show in dialog
+          if (userId) {
+            try {
+              const feedbackResponse = await getJSON(`feedback/user/${userId}`);
+              if (feedbackResponse?.success && Array.isArray(feedbackResponse.data)) {
+                const feedback = feedbackResponse.data.find(
+                  (fb) => {
+                    const courseId = fb.courseId?._id?.toString() || fb.courseId?.toString();
+                    return courseId === activeCert.id.toString();
+                  }
+                );
+                if (feedback) {
+                  setExistingFeedback(feedback);
+                  formik.setValues({
+                    stars: feedback.rating || 0,
+                    feedback: feedback.feedback || "",
+                    rememberTop: feedback.rememberTop || false,
+                    rememberBottom: feedback.rememberBottom || false,
+                  });
+                }
+              }
+            } catch (loadError) {
+              console.error("Error loading existing feedback:", loadError);
+            }
+          }
+        } else {
+          // For other errors, show SweetAlert
+          Swal.fire({
+            icon: "error",
+            title: "Submission Failed",
+            text: errorMessage,
+            confirmButtonColor: palette.green,
+          });
         }
       } finally {
         formikSubmitting(false);
@@ -851,8 +879,8 @@ export default function Certifications() {
     setLoadingFeedback(true);
     setExistingFeedback(null);
     
-    // Check if feedback already exists
-    if (cert.hasFeedback && userId) {
+    // Always check if feedback already exists for this course
+    if (userId) {
       try {
         const feedbackResponse = await getJSON(`feedback/user/${userId}`);
         if (feedbackResponse?.success && Array.isArray(feedbackResponse.data)) {
@@ -877,10 +905,11 @@ export default function Certifications() {
         }
       } catch (error) {
         console.error("Error loading existing feedback:", error);
+        // Continue to reset form even if there's an error
       }
     }
     
-    // Reset form if no existing feedback
+    // Reset form if no existing feedback found
     formik.resetForm({
       values: {
         stars: 0,

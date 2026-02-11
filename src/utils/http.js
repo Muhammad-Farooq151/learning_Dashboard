@@ -35,13 +35,26 @@ axiosInstance.interceptors.response.use(
   (error) => {
     // Handle error response
     if (error.response) {
-      // Log the error for debugging
-      console.error('API Error Response:', {
-        status: error.response.status,
-        statusText: error.response.statusText,
-        data: error.response.data,
-        url: error.config?.url
-      });
+      // Only log non-expected errors (not 400 for duplicate feedback, etc.)
+      const isExpectedError = error.response.status === 400 && 
+        (error.response.data?.message?.toLowerCase().includes("already") ||
+         error.response.data?.data?.existing === true);
+      
+      if (!isExpectedError) {
+        // Log the error for debugging (only if it's not an expected error)
+        const logData = {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          url: error.config?.url,
+        };
+        
+        // Only include data if it exists and has meaningful content
+        if (error.response.data && Object.keys(error.response.data).length > 0) {
+          logData.data = error.response.data;
+        }
+        
+        console.error('API Error Response:', logData);
+      }
       
       const message =
         error.response.data?.error ||
@@ -109,6 +122,20 @@ export async function postFormData(url, formData, options = {}) {
     return response.data;
   } catch (error) {
     if (error.response) {
+      // Check if it's an expected error (like duplicate feedback)
+      const isExpectedError = error.response.status === 400 && 
+        (error.response.data?.message?.toLowerCase().includes("already") ||
+         error.response.data?.data?.existing === true);
+      
+      // Only log unexpected errors
+      if (!isExpectedError && error.response.data && Object.keys(error.response.data).length > 0) {
+        console.error('FormData Upload Error:', {
+          status: error.response.status,
+          message: error.response.data?.message || error.response.data?.error,
+          url: error.config?.url,
+        });
+      }
+      
       const message =
         error.response.data?.error ||
         error.response.data?.message ||

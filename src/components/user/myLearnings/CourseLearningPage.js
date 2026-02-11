@@ -21,6 +21,10 @@ import {
   DialogContent,
   DialogActions,
   Divider,
+  Rating,
+  Avatar,
+  Paper,
+  CircularProgress,
 } from "@mui/material";
 import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
@@ -33,6 +37,8 @@ import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
+import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import ImageIcon from "@mui/icons-material/Image";
 import { useRouter } from "next/navigation";
 import { greenColor } from "@/components/utils/Colors";
 import Link from "next/link";
@@ -75,6 +81,8 @@ function CourseLearningPage({ courseId, course }) {
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [lessonProgress, setLessonProgress] = useState({}); // { lessonId: { watched: seconds, completed: boolean } }
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
   
   // Initialize currentVideoTime when lesson is selected
   useEffect(() => {
@@ -84,6 +92,30 @@ function CourseLearningPage({ courseId, course }) {
       setCurrentVideoTime(0);
     }
   }, [selectedLesson?.id, lessonProgress]);
+
+  // Load reviews when reviews tab is selected
+  useEffect(() => {
+    const loadReviews = async () => {
+      if (tab !== "reviews" || !courseId) return;
+      
+      setLoadingReviews(true);
+      try {
+        const response = await getJSON(`feedback/course/${courseId}`);
+        if (response?.success && Array.isArray(response.data)) {
+          setReviews(response.data);
+        } else {
+          setReviews([]);
+        }
+      } catch (error) {
+        console.error("Error loading reviews:", error);
+        setReviews([]);
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+
+    loadReviews();
+  }, [tab, courseId]);
 
   // Load progress from database on mount
   useEffect(() => {
@@ -1023,12 +1055,127 @@ function CourseLearningPage({ courseId, course }) {
 
             {tab === "reviews" && (
               <Box>
-                <Typography variant="h6" fontWeight={600} gutterBottom>
+                <Typography variant="h6" fontWeight={600} gutterBottom sx={{ mb: 3 }}>
                   Course Reviews
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                  Reviews and ratings will be displayed here.
-                </Typography>
+
+                {loadingReviews ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : reviews.length === 0 ? (
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 4,
+                      textAlign: "center",
+                      border: "1px solid",
+                      borderColor: "divider",
+                      borderRadius: 2,
+                    }}
+                  >
+                    <StarRoundedIcon sx={{ fontSize: 48, color: "text.secondary", mb: 2, opacity: 0.5 }} />
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      No Reviews Yet
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Be the first to review this course!
+                    </Typography>
+                  </Paper>
+                ) : (
+                  <Stack spacing={2}>
+                    {reviews.map((review, index) => (
+                      <Paper
+                        key={review._id || index}
+                        elevation={0}
+                        sx={{
+                          p: 3,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          borderRadius: 2,
+                        }}
+                      >
+                        <Stack spacing={2}>
+                          {/* User Info and Rating */}
+                          <Stack direction="row" spacing={2} alignItems="center">
+                            <Avatar
+                              sx={{
+                                bgcolor: greenColor,
+                                width: 48,
+                                height: 48,
+                                fontSize: "1.2rem",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {(review.fullName || review.userId?.fullName || "U")?.charAt(0)?.toUpperCase()}
+                            </Avatar>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="subtitle1" fontWeight={600}>
+                                {review.fullName || review.userId?.fullName || "Anonymous User"}
+                              </Typography>
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                                <Rating
+                                  value={review.rating || 0}
+                                  readOnly
+                                  precision={0.5}
+                                  size="small"
+                                  icon={<StarRoundedIcon sx={{ color: "#F59E0B" }} />}
+                                  emptyIcon={<StarRoundedIcon sx={{ color: "action.disabled" }} />}
+                                />
+                                <Typography variant="caption" color="text.secondary">
+                                  {review.createdAt
+                                    ? new Date(review.createdAt).toLocaleDateString("en-US", {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                      })
+                                    : ""}
+                                </Typography>
+                              </Stack>
+                            </Box>
+                          </Stack>
+
+                          {/* Feedback Text */}
+                          {review.feedback && (
+                            <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.7 }}>
+                              {review.feedback}
+                            </Typography>
+                          )}
+
+                          {/* Uploaded Image */}
+                          {review.fileUrl && (
+                            <Box
+                              sx={{
+                                mt: 1,
+                                borderRadius: 1.5,
+                                overflow: "hidden",
+                                border: "1px solid",
+                                borderColor: "divider",
+                                maxWidth: 400,
+                              }}
+                            >
+                              <Box
+                                component="img"
+                                src={review.fileUrl}
+                                alt="Review attachment"
+                                sx={{
+                                  width: "100%",
+                                  height: "auto",
+                                  display: "block",
+                                  cursor: "pointer",
+                                  "&:hover": { opacity: 0.9 },
+                                }}
+                                onClick={() => window.open(review.fileUrl, "_blank")}
+                              />
+                            </Box>
+                          )}
+
+                          {index < reviews.length - 1 && <Divider sx={{ mt: 1 }} />}
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Stack>
+                )}
               </Box>
             )}
 
