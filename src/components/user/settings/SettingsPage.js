@@ -371,10 +371,10 @@ function SettingsPage() {
   }, []);
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, minHeight: "100vh" }}>
-      <Typography variant="h5" fontWeight={600} mb={3}>
+    <Box >
+      {/* <Typography variant="h5" fontWeight={600} mb={3}>
         Settings
-      </Typography>
+      </Typography> */}
 
       <Stack spacing={3}>
         <Card

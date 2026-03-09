@@ -43,10 +43,10 @@ export default function UserLayout({ children }) {
       <Box width={["0%","0%","18%"]} position={"fixed"} sx={{display:["none","none","block"]}}>
         <Sidebar />
       </Box>
-      <Box width={"82%"} ml={["0%","0%","18%"]} >
+      <Box width={["100%","100%","82%"]} ml={["0%","0%","18%"]} >
         {/* Navbar */}
         <Navbar/>
-        {children}
+       <Box p={2}>{children}</Box>
       </Box>
     </Box>
   );

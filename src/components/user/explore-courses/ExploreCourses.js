@@ -173,16 +173,16 @@ function ExploreCourses() {
   }, [search, statusFilter, instructorFilter, courses]);
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 } }}>
+    <Box >
       <Stack spacing={3}>
-        <Box>
+        {/* <Box>
           <Typography variant="h4" fontWeight={600}>
             Courses
           </Typography>
           <Typography variant="body1" color="text.secondary" mt={1}>
             Explore curated courses tailored to your interests and skill level.
           </Typography>
-        </Box>
+        </Box> */}
 
         <Stack
           direction={{ xs: "column", md: "row" }}
@@ -253,6 +253,7 @@ function ExploreCourses() {
                 anchorEl={statusAnchorEl}
                 open={Boolean(statusAnchorEl)}
                 onClose={handleStatusClose}
+                disableScrollLock
                 anchorOrigin={{
                   vertical: "bottom",
                   horizontal: "left",
@@ -323,6 +324,7 @@ function ExploreCourses() {
                 anchorEl={instructorAnchorEl}
                 open={Boolean(instructorAnchorEl)}
                 onClose={handleInstructorClose}
+                disableScrollLock
                 anchorOrigin={{
                   vertical: "bottom",
                   horizontal: "left",

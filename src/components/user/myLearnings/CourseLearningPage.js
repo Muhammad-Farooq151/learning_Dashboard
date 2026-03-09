@@ -75,6 +75,52 @@ const formatDurationTime = (seconds) => {
   return `${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
 
+const buildWatchedSegmentsFromRanges = (watchedRanges = []) => {
+  const watchedSegments = new Set();
+
+  watchedRanges.forEach((range) => {
+    const start = Number.isFinite(range?.start) ? Math.floor(range.start) : null;
+    const end = Number.isFinite(range?.end) ? Math.floor(range.end) : null;
+
+    if (start === null || end === null || end < start) return;
+
+    for (let i = start; i <= end; i += 1) {
+      watchedSegments.add(i);
+    }
+  });
+
+  return watchedSegments;
+};
+
+const getLessonRealtimeSnapshot = (lessonId, durationSeconds, progressState, watchedSegmentsRef) => {
+  const savedProgress = progressState?.[lessonId] || {};
+  const maxSecond = Math.max(0, Math.floor(durationSeconds || 0));
+  const persistedSegments =
+    savedProgress.watchedRanges?.length > 0
+      ? buildWatchedSegmentsFromRanges(savedProgress.watchedRanges)
+      : null;
+  const persistedWatchedSeconds = persistedSegments
+    ? Array.from(persistedSegments).filter((second) => second >= 0 && second <= maxSecond).length
+    : Math.min(savedProgress.watchedSeconds || 0, durationSeconds || savedProgress.watchedSeconds || 0);
+  const liveWatchedSegments = watchedSegmentsRef.current.get(lessonId);
+  const liveWatchedSeconds = liveWatchedSegments
+    ? Array.from(liveWatchedSegments).filter((second) => second >= 0 && second <= maxSecond).length
+    : 0;
+  const watchedSeconds = Math.max(persistedWatchedSeconds, liveWatchedSeconds);
+  const reachedCompletionThreshold = durationSeconds > 0 && watchedSeconds >= durationSeconds * 0.9;
+  const completed = Boolean(savedProgress.completed || reachedCompletionThreshold);
+  const progressPercent =
+    durationSeconds > 0 ? Math.min(100, Math.round((watchedSeconds / durationSeconds) * 100)) : 0;
+
+  return {
+    watched: Math.min(savedProgress.watched || 0, durationSeconds || savedProgress.watched || 0),
+    watchedSeconds,
+    completed,
+    watchedRanges: savedProgress.watchedRanges || [],
+    progressPercent: completed && reachedCompletionThreshold ? 100 : progressPercent,
+  };
+};
+
 function CourseLearningPage({ courseId, course }) {
   const router = useRouter();
   const [tab, setTab] = useState("course-material");
@@ -85,11 +131,17 @@ function CourseLearningPage({ courseId, course }) {
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [socket, setSocket] = useState(null);
+  const [socketConnected, setSocketConnected] = useState(false);
   const [progressUpdateTrigger, setProgressUpdateTrigger] = useState(0); // Force re-render for progress
   
   // SCORM-style watched segments tracking (Set of watched seconds)
   const watchedSegmentsRef = useRef(new Map()); // { lessonId: Set<seconds> }
   const lastTimeRef = useRef(new Map()); // { lessonId: lastTime } for skip detection
+  const selectedLessonRef = useRef(null);
+
+  useEffect(() => {
+    selectedLessonRef.current = selectedLesson;
+  }, [selectedLesson]);
   
   // Initialize Socket.io connection
   useEffect(() => {
@@ -98,35 +150,44 @@ function CourseLearningPage({ courseId, course }) {
 
     console.log('[Socket.io] Initializing connection...');
 
-    socketInstance.on('connect', () => {
+    const handleConnect = () => {
+      setSocketConnected(true);
       console.log('[Socket.io] ✅ Connected to server');
-    });
+    };
 
-    socketInstance.on('disconnect', () => {
+    const handleDisconnect = () => {
+      setSocketConnected(false);
       console.log('[Socket.io] ❌ Disconnected from server');
-    });
+    };
 
     // Save progress before page unload/reload
     const handleBeforeUnload = () => {
-      if (selectedLesson?.id && socketInstance && socketInstance.connected && videoRef.current) {
+      const activeLesson = selectedLessonRef.current;
+      if (activeLesson?.id && socketInstance && socketInstance.connected && videoRef.current) {
         const video = videoRef.current;
         const currentTime = video.currentTime || 0;
-        const totalDuration = selectedLesson.durationSeconds || 0;
+        const totalDuration = activeLesson.durationSeconds || 0;
+        const watchedSegments = watchedSegmentsRef.current.get(activeLesson.id) || new Set();
         
         console.log('[Socket.io] Saving progress before page unload:', {
-          lessonId: selectedLesson.id,
+          lessonId: activeLesson.id,
           currentTime: Math.floor(currentTime),
         });
         
         socketInstance.emit('video:progress', {
           courseId,
-          lessonId: selectedLesson.id,
+          lessonId: activeLesson.id,
           currentTime: Math.floor(currentTime),
           videoDuration: totalDuration,
           isPlaying: false, // Pause to trigger immediate save
+          watchedSegments: Array.from(watchedSegments),
+          watchedSegmentsCount: watchedSegments.size,
         });
       }
     };
+
+    socketInstance.on('connect', handleConnect);
+    socketInstance.on('disconnect', handleDisconnect);
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('pagehide', handleBeforeUnload);
@@ -149,13 +210,10 @@ function CourseLearningPage({ courseId, course }) {
         // Restore watched segments from server response if available
         // This ensures segments are synced with server (SCORM-style)
         if (data.watchedRanges && Array.isArray(data.watchedRanges)) {
-          const watchedSegments = new Set();
-          data.watchedRanges.forEach(range => {
-            for (let i = Math.floor(range.start); i <= Math.floor(range.end); i++) {
-              watchedSegments.add(i);
-            }
-          });
-          watchedSegmentsRef.current.set(data.lessonId, watchedSegments);
+          watchedSegmentsRef.current.set(
+            data.lessonId,
+            buildWatchedSegmentsFromRanges(data.watchedRanges)
+          );
         }
         
         setLessonProgress((prev) => {
@@ -176,7 +234,7 @@ function CourseLearningPage({ courseId, course }) {
           }
           
           // If this is the currently selected lesson, update UI
-          if (selectedLesson?.id === data.lessonId) {
+          if (selectedLessonRef.current?.id === data.lessonId) {
             setCurrentVideoTime(resumeTime);
             // Force re-render of progress bar
             setProgressUpdateTrigger((prev) => prev + 1);
@@ -197,24 +255,55 @@ function CourseLearningPage({ courseId, course }) {
 
     socketInstance.on('video:ended:saved', (data) => {
       console.log('[Socket.io] ✅ Video ended saved:', data);
-      if (selectedLesson?.id && data.success) {
-        setLessonProgress((prev) => ({
-          ...prev,
-          [selectedLesson.id]: {
-            watched: selectedLesson.durationSeconds || 0,
-            completed: true,
-          },
-        }));
+      if (data?.lessonId && data.success) {
+        if (data.watchedRanges && Array.isArray(data.watchedRanges)) {
+          watchedSegmentsRef.current.set(
+            data.lessonId,
+            buildWatchedSegmentsFromRanges(data.watchedRanges)
+          );
+        }
+
+        const resumeTime = data.resumeTime !== undefined ? data.resumeTime : (data.watched || 0);
+
+        setLessonProgress((prev) => {
+          const updated = {
+            ...prev,
+            [data.lessonId]: {
+              watched: resumeTime,
+              watchedSeconds: data.watchedSeconds || prev[data.lessonId]?.watchedSeconds || 0,
+              completed: data.completed || false,
+              resumeTime,
+              watchedRanges: data.watchedRanges || prev[data.lessonId]?.watchedRanges || [],
+            },
+          };
+
+          if (courseId) {
+            localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(updated));
+          }
+
+          return updated;
+        });
+
+        if (selectedLessonRef.current?.id === data.lessonId) {
+          setCurrentVideoTime(resumeTime);
+          setProgressUpdateTrigger((prev) => prev + 1);
+        }
       }
     });
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('pagehide', handleBeforeUnload);
+      socketInstance.off('connect', handleConnect);
+      socketInstance.off('disconnect', handleDisconnect);
+      socketInstance.off('video:progress:saved');
+      socketInstance.off('video:progress:warning');
+      socketInstance.off('video:progress:error');
+      socketInstance.off('video:ended:saved');
       console.log('[Socket.io] Cleaning up connection...');
       disconnectSocket();
     };
-  }, [selectedLesson?.id, courseId]);
+  }, [courseId]);
 
   // Initialize currentVideoTime when lesson is selected - reload from database
   useEffect(() => {
@@ -235,12 +324,7 @@ function CourseLearningPage({ courseId, course }) {
                 const watchedRanges = lessonProgressData.watchedRanges || [];
                 
                 // Restore watched segments from watchedRanges (SCORM-style)
-                const watchedSegments = new Set();
-                watchedRanges.forEach(range => {
-                  for (let i = Math.floor(range.start); i <= Math.floor(range.end); i++) {
-                    watchedSegments.add(i);
-                  }
-                });
+                const watchedSegments = buildWatchedSegmentsFromRanges(watchedRanges);
                 watchedSegmentsRef.current.set(selectedLesson.id, watchedSegments);
                 lastTimeRef.current.set(selectedLesson.id, savedTime);
                 
@@ -356,12 +440,7 @@ function CourseLearningPage({ courseId, course }) {
               const watchedRanges = lesson.watchedRanges || [];
               
               // Restore watched segments from watchedRanges (SCORM-style)
-              const watchedSegments = new Set();
-              watchedRanges.forEach(range => {
-                for (let i = Math.floor(range.start); i <= Math.floor(range.end); i++) {
-                  watchedSegments.add(i);
-                }
-              });
+              const watchedSegments = buildWatchedSegmentsFromRanges(watchedRanges);
               watchedSegmentsRef.current.set(lessonIdStr, watchedSegments);
               
               progressMap[lessonIdStr] = {
@@ -406,28 +485,13 @@ function CourseLearningPage({ courseId, course }) {
     const lessons = course.fullData.lessons.map((lesson, index) => {
       // Convert lessonId to string for consistent matching with progress data
       const lessonId = lesson._id ? lesson._id.toString() : index.toString();
-      const progress = lessonProgress[lessonId] || { watched: 0, watchedSeconds: 0, completed: false };
       const lessonDuration = lesson.duration || 0;
-      
-      // Calculate progress percentage from watchedSeconds (actual watched time from ranges)
-      // NOT from currentTime (which can be faked by dragging)
-      // IMPORTANT: Use watchedSeconds, not completed flag alone (prevents fake 100%)
-      let progressPercent = 0;
-      if (lessonDuration > 0) {
-        const watchedSeconds = progress.watchedSeconds || 0;
-        
-        // Calculate from watchedSeconds (REAL progress from ranges)
-        progressPercent = Math.min(100, Math.round((watchedSeconds / lessonDuration) * 100));
-        
-        // Only show 100% if actually watched 90%+ AND completed flag is true
-        // This prevents showing 100% when only completed flag is set but not enough watched
-        if (progress.completed && watchedSeconds >= lessonDuration * 0.9) {
-          progressPercent = 100;
-        } else if (progress.completed && watchedSeconds < lessonDuration * 0.9) {
-          // If completed flag is true but not enough watched, use actual progress
-          // Don't force 100% - use calculated progressPercent
-        }
-      }
+      const progress = getLessonRealtimeSnapshot(
+        lessonId,
+        lessonDuration,
+        lessonProgress,
+        watchedSegmentsRef
+      );
       
       return {
         id: lessonId,
@@ -435,8 +499,8 @@ function CourseLearningPage({ courseId, course }) {
         duration: formatDuration(lessonDuration),
         durationSeconds: lessonDuration,
         type: lesson.videoUrl ? "Video" : "Quiz",
-        completed: progress.completed || progressPercent >= 90,
-        progress: progressPercent,
+        completed: progress.completed,
+        progress: progress.progressPercent,
         watched: progress.watched || 0, // Resume position
         watchedSeconds: progress.watchedSeconds || 0, // Actual watched time from ranges
         summary: lesson.learningOutcomes || "",
@@ -460,7 +524,7 @@ function CourseLearningPage({ courseId, course }) {
         },
       ],
     };
-  }, [course, lessonProgress]);
+  }, [course, lessonProgress, progressUpdateTrigger]);
 
   const totalLessons = useMemo(
     () => curriculum.sections.reduce((sum, section) => sum + section.lessons.length, 0),
@@ -472,20 +536,45 @@ function CourseLearningPage({ courseId, course }) {
     [curriculum]
   );
 
-  // Calculate overall course progress - use database completed flag as source of truth
+  const selectedLessonProgress = useMemo(() => {
+    if (!selectedLesson) {
+      return { watched: 0, watchedSeconds: 0, completed: false, progressPercent: 0 };
+    }
+
+    return getLessonRealtimeSnapshot(
+      selectedLesson.id,
+      selectedLesson.durationSeconds || 0,
+      lessonProgress,
+      watchedSegmentsRef
+    );
+  }, [
+    selectedLesson?.id,
+    selectedLesson?.durationSeconds,
+    lessonProgress,
+    progressUpdateTrigger,
+  ]);
+
+  // Calculate overall course progress from combined lesson watch progress
   const courseProgress = useMemo(() => {
     if (!curriculum.sections.length || !totalLessons) return 0;
     const allLessons = curriculum.sections.flatMap((s) => s.lessons);
-    // Only count lessons where completed flag is true in database (not just 90% watched)
-    const completedLessons = allLessons.filter((l) => {
-      // Ensure lessonId is string for matching
-      const lessonId = l.id?.toString() || l.id;
-      const progress = lessonProgress[lessonId];
-      // Use database completed flag as source of truth
-      return progress?.completed === true;
-    }).length;
-    return Math.round((completedLessons / totalLessons) * 100);
-  }, [curriculum, totalLessons, lessonProgress]);
+    const totalDuration = allLessons.reduce(
+      (sum, lesson) => sum + (lesson.durationSeconds || 0),
+      0
+    );
+
+    if (!totalDuration) return 0;
+
+    const totalWatchedSeconds = allLessons.reduce((sum, lesson) => {
+      const watchedSeconds = Math.min(
+        lesson.watchedSeconds || 0,
+        lesson.durationSeconds || 0
+      );
+      return sum + watchedSeconds;
+    }, 0);
+
+    return Math.min(100, Math.round((totalWatchedSeconds / totalDuration) * 100));
+  }, [curriculum, totalLessons]);
 
   // Video ref for tracking
   const videoRef = useRef(null);
@@ -554,50 +643,23 @@ function CourseLearningPage({ courseId, course }) {
         isCompleted,
       });
       
-      const userId = getStoredUserId();
-      if (userId && courseId && selectedLesson.id) {
-        // Always save progress, even if timeInSeconds is 0 (might be at start)
-        try {
-          const response = await postJSON('progress/update', {
-            userId,
-            courseId,
-            lessonId: selectedLesson.id,
+      setLessonProgress((prev) => {
+        const updated = {
+          ...prev,
+          [selectedLesson.id]: {
             watched: timeInSeconds,
+            watchedSeconds: Math.max(prev[selectedLesson.id]?.watchedSeconds || 0, watchedSecondsCount),
             completed: isCompleted,
-          });
-          
-          console.log('[API] ✅ Progress saved on dialog close:', {
-            lessonId: selectedLesson.id,
-            watched: timeInSeconds,
-            progressPercent,
-            isCompleted,
-            response: response?.data,
-          });
-          
-          // Update local state with saved progress (SCORM-style)
-          // IMPORTANT: watchedSegments persist in ref - NOT reset on close
-          setLessonProgress((prev) => {
-            const updated = {
-              ...prev,
-              [selectedLesson.id]: {
-                watched: timeInSeconds, // Resume position
-                watchedSeconds: watchedSecondsCount, // REAL progress from segments
-                completed: isCompleted,
-                watchedRanges: prev[selectedLesson.id]?.watchedRanges || [], // Preserve ranges
-              },
-            };
-            if (courseId) {
-              localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(updated));
-            }
-            return updated;
-          });
-        } catch (error) {
-          console.error('[API] ❌ Error saving progress on dialog close:', error);
+            watchedRanges: prev[selectedLesson.id]?.watchedRanges || [],
+          },
+        };
+        if (courseId) {
+          localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(updated));
         }
-      }
-      
-      // Also send via Socket.io for real-time sync - include watched segments
-      if (socket && socket.connected) {
+        return updated;
+      });
+
+      if (socketConnected && socket) {
         const watchedSegments = watchedSegmentsRef.current.get(selectedLesson.id) || new Set();
         socket.emit('video:progress', {
           courseId,
@@ -608,6 +670,21 @@ function CourseLearningPage({ courseId, course }) {
           watchedSegments: Array.from(watchedSegments), // Send watched segments (SCORM-style)
           watchedSegmentsCount: watchedSegments.size,
         });
+      } else {
+        const userId = getStoredUserId();
+        if (userId && courseId && selectedLesson.id) {
+          try {
+            await postJSON('progress/update', {
+              userId,
+              courseId,
+              lessonId: selectedLesson.id,
+              watched: timeInSeconds,
+              completed: isCompleted,
+            });
+          } catch (error) {
+            console.error('[API] ❌ Error saving progress on dialog close fallback:', error);
+          }
+        }
       }
     }
     
@@ -652,7 +729,7 @@ function CourseLearningPage({ courseId, course }) {
 
   // Video event handlers with Socket.io
   useEffect(() => {
-    if (!selectedLesson || !socket || !socket.connected) {
+    if (!selectedLesson || !socket) {
       if (!selectedLesson) setCurrentVideoTime(0);
       return;
     }
@@ -763,7 +840,7 @@ function CourseLearningPage({ courseId, course }) {
             watchedSegmentsCount: watchedSegments.size,
             realProgressPercent,
             totalDuration,
-            isSeeking,
+            isNormalPlayback,
           });
         }
       };
@@ -773,40 +850,19 @@ function CourseLearningPage({ courseId, course }) {
           const currentTime = video.currentTime || 0;
           const timeInSeconds = Math.floor(currentTime);
           setCurrentVideoTime(timeInSeconds);
-          
-          // Save progress via API when video starts
-          const userId = getStoredUserId();
-          if (userId && courseId && selectedLesson.id) {
-            try {
-              const totalDuration = selectedLesson.durationSeconds || 0;
-              const progressPercent = totalDuration > 0 
-                ? Math.round((timeInSeconds / totalDuration) * 100) 
-                : 0;
-              const isCompleted = progressPercent >= 90;
-              
-              await postJSON('progress/update', {
-                userId,
-                courseId,
-                lessonId: selectedLesson.id,
-                watched: timeInSeconds,
-                completed: isCompleted,
-              });
-              
-              console.log('[API] ✅ Progress saved on video start:', {
-                lessonId: selectedLesson.id,
-                watched: timeInSeconds,
-                progressPercent,
-              });
-            } catch (error) {
-              console.error('[API] ❌ Error saving progress on video start:', error);
-            }
-          }
         }
       };
 
       const handleEnded = async () => {
         if (selectedLesson.id) {
           const totalDuration = selectedLesson.durationSeconds || 0;
+          const watchedSegments = watchedSegmentsRef.current.get(selectedLesson.id) || new Set();
+          const watchedSecondsCount = watchedSegments.size;
+          const realProgressPercent = totalDuration > 0
+            ? Math.min(100, Math.round((watchedSecondsCount / totalDuration) * 100))
+            : 0;
+          const isCompleted = realProgressPercent >= 90;
+
           setCurrentVideoTime(totalDuration);
           
           // Update local state immediately first (for instant UI update)
@@ -815,8 +871,9 @@ function CourseLearningPage({ courseId, course }) {
               ...prev,
               [selectedLesson.id]: { 
                 watched: totalDuration, 
-                watchedSeconds: totalDuration,
-                completed: true 
+                watchedSeconds: Math.max(prev[selectedLesson.id]?.watchedSeconds || 0, watchedSecondsCount),
+                completed: prev[selectedLesson.id]?.completed || isCompleted,
+                watchedRanges: prev[selectedLesson.id]?.watchedRanges || [],
               },
             };
             // Save to localStorage as backup
@@ -826,97 +883,46 @@ function CourseLearningPage({ courseId, course }) {
             return newProgress;
           });
           
-          // Save progress via API when video ends
-          const userId = getStoredUserId();
-          if (userId && courseId && selectedLesson.id) {
-            try {
-              const response = await postJSON('progress/update', {
-                userId,
-                courseId,
-                lessonId: selectedLesson.id,
-                watched: totalDuration,
-                completed: true,
-              });
-              
-              console.log('[API] ✅ Progress saved on video end:', {
-                lessonId: selectedLesson.id,
-                watched: totalDuration,
-                completed: true,
-                response: response?.data,
-              });
-              
-              // Update local state with server response to ensure sync
-              if (response?.data?.lessons) {
-                const lessonProgressData = response.data.lessons.find(
-                  l => l.lessonId?.toString() === selectedLesson.id
-                );
-                if (lessonProgressData) {
-                  setLessonProgress((prev) => {
-                    const updated = {
-                      ...prev,
-                      [selectedLesson.id]: {
-                        watched: lessonProgressData.watched || totalDuration,
-                        completed: lessonProgressData.completed !== undefined ? lessonProgressData.completed : true,
-                      },
-                    };
-                    if (courseId) {
-                      localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(updated));
-                    }
-                    return updated;
-                  });
-                }
-              }
-            } catch (error) {
-              console.error('[API] ❌ Error saving progress on video end:', error);
-            }
-          }
-          
           // Also send via Socket.io (backup)
-          if (socket && socket.connected) {
+          if (socketConnected && socket) {
             socket.emit('video:ended', {
               courseId,
               lessonId: selectedLesson.id,
               videoDuration: totalDuration,
+              watchedSegments: Array.from(watchedSegments),
             });
+          } else {
+            const userId = getStoredUserId();
+            if (userId && courseId && selectedLesson.id) {
+              try {
+                await postJSON('progress/update', {
+                  userId,
+                  courseId,
+                  lessonId: selectedLesson.id,
+                  watched: totalDuration,
+                  completed: isCompleted,
+                });
+              } catch (error) {
+                console.error('[API] ❌ Error saving progress on video end fallback:', error);
+              }
+            }
           }
         }
       };
 
       const handlePause = async () => {
-        // Save progress via API immediately on pause
         if (selectedLesson.id && video) {
           const currentTime = video.currentTime || 0;
           const timeInSeconds = Math.floor(currentTime);
           const totalDuration = selectedLesson.durationSeconds || 0;
-          const progressPercent = totalDuration > 0 
-            ? Math.round((timeInSeconds / totalDuration) * 100) 
+          const watchedSegments = watchedSegmentsRef.current.get(selectedLesson.id) || new Set();
+          const watchedSecondsCount = watchedSegments.size;
+          const realProgressPercent = totalDuration > 0
+            ? Math.min(100, Math.round((watchedSecondsCount / totalDuration) * 100))
             : 0;
-          const isCompleted = progressPercent >= 90;
-          
-          const userId = getStoredUserId();
-          if (userId && courseId && selectedLesson.id) {
-            try {
-              await postJSON('progress/update', {
-                userId,
-                courseId,
-                lessonId: selectedLesson.id,
-                watched: timeInSeconds,
-                completed: isCompleted,
-              });
-              
-              console.log('[API] ✅ Progress saved on pause:', {
-                lessonId: selectedLesson.id,
-                watched: timeInSeconds,
-                progressPercent,
-              });
-            } catch (error) {
-              console.error('[API] ❌ Error saving progress on pause:', error);
-            }
-          }
-          
-          // Also send via Socket.io (backup) - include watched segments
-          if (socket && socket.connected) {
-            const watchedSegments = watchedSegmentsRef.current.get(selectedLesson.id) || new Set();
+          const isCompleted = realProgressPercent >= 90;
+
+          if (socketConnected && socket) {
             socket.emit('video:progress', {
               courseId,
               lessonId: selectedLesson.id,
@@ -926,6 +932,21 @@ function CourseLearningPage({ courseId, course }) {
               watchedSegments: Array.from(watchedSegments), // Send watched segments (SCORM-style)
               watchedSegmentsCount: watchedSegments.size,
             });
+          } else {
+            const userId = getStoredUserId();
+            if (userId && courseId && selectedLesson.id) {
+              try {
+                await postJSON('progress/update', {
+                  userId,
+                  courseId,
+                  lessonId: selectedLesson.id,
+                  watched: timeInSeconds,
+                  completed: isCompleted,
+                });
+              } catch (error) {
+                console.error('[API] ❌ Error saving progress on pause fallback:', error);
+              }
+            }
           }
         }
       };
@@ -1015,7 +1036,7 @@ function CourseLearningPage({ courseId, course }) {
           
           // Send via Socket.io (primary method for real-time updates)
           // Include watched segments array for server-side tracking (Cloudinary + Socket.io)
-          if (socket && socket.connected) {
+          if (socketConnected && socket) {
             socket.emit('video:progress', {
               courseId,
               lessonId: selectedLesson.id,
@@ -1049,7 +1070,7 @@ function CourseLearningPage({ courseId, course }) {
         if (progressInterval) clearInterval(progressInterval);
         
         // Send final pause event on cleanup - include watched segments
-        if (selectedLesson.id && video && socket && socket.connected) {
+        if (selectedLesson.id && video && socketConnected && socket) {
           const currentTime = video.currentTime || 0;
           const totalDuration = selectedLesson.durationSeconds || 0;
           const watchedSegments = watchedSegmentsRef.current.get(selectedLesson.id) || new Set();
@@ -1072,7 +1093,7 @@ function CourseLearningPage({ courseId, course }) {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [selectedLesson?.id, courseId, socket]); // Removed lessonProgress from dependencies to prevent re-runs
+  }, [selectedLesson?.id, courseId, socket, socketConnected]); // Removed lessonProgress from dependencies to prevent re-runs
 
   if (!course) {
     return (
@@ -1179,20 +1200,76 @@ function CourseLearningPage({ courseId, course }) {
             boxShadow: "0px 4px 12px rgba(0,0,0,0.08)",
           }}
         >
-          <Tabs
-            value={tab}
-            onChange={(e, v) => setTab(v)}
-            sx={{
-              borderBottom: 1,
-              borderColor: "divider",
-              px: { xs: 2, md: 3 },
-            }}
-          >
-            <Tab label="Course Material" value="course-material" />
-            <Tab label="Resources" value="resources" />
-            <Tab label="Reviews" value="reviews" />
-            <Tab label="Overview" value="overview" />
-          </Tabs>
+          <Box sx={{ position: "relative" }}>
+            <Tabs
+              value={tab}
+              onChange={(e, v) => setTab(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{
+                borderBottom: 1,
+                borderColor: "divider",
+                px: { xs: 1, md: 3 },
+                minHeight: 52,
+                "& .MuiTabs-flexContainer": {
+                  gap: { xs: 0.5, md: 1.5 },
+                },
+                "& .MuiTabs-scrollButtons": {
+                  width: 30,
+                  color: greenColor,
+                  "&.Mui-disabled": {
+                    opacity: 0.25,
+                  },
+                },
+                "& .MuiTabs-scrollButtons.MuiButtonBase-root": {
+                  display: { xs: "flex", md: "none" },
+                },
+              }}
+            >
+              <Tab
+                label="Course Material"
+                value="course-material"
+                sx={{ minHeight: 52, whiteSpace: "nowrap", minWidth: "max-content", px: 1.5 }}
+              />
+              <Tab
+                label="Resources"
+                value="resources"
+                sx={{ minHeight: 52, whiteSpace: "nowrap", minWidth: "max-content", px: 1.5 }}
+              />
+              <Tab
+                label="Reviews"
+                value="reviews"
+                sx={{ minHeight: 52, whiteSpace: "nowrap", minWidth: "max-content", px: 1.5 }}
+              />
+              <Tab
+                label="Overview"
+                value="overview"
+                sx={{ minHeight: 52, whiteSpace: "nowrap", minWidth: "max-content", px: 1.5 }}
+              />
+            </Tabs>
+
+            <Box
+              sx={{
+                display: { xs: "flex", md: "none" },
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: 0.5,
+                px: 2,
+                py: 0.75,
+                color: "text.secondary",
+                fontSize: "0.72rem",
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <ArrowBackRoundedIcon sx={{ fontSize: 14 }} />
+              <Typography variant="caption" color="inherit">
+                Swipe tabs
+              </Typography>
+              <ArrowForwardRoundedIcon sx={{ fontSize: 14 }} />
+            </Box>
+          </Box>
 
           {/* Tab Content */}
           <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -1748,120 +1825,47 @@ function CourseLearningPage({ courseId, course }) {
                     preload="metadata" // Load metadata for duration
                   />
                   {/* Progress Bar Overlay with Percentage - Real-time Updates */}
-                  {(() => {
-                    const totalDuration = selectedLesson.durationSeconds || 0;
-                    let progressPercent = 0;
-                    
-                    // Get current time - prioritize video.currentTime for accuracy, fallback to state
-                    const video = videoRef.current;
-                    let actualCurrentTime = currentVideoTime;
-                    
-                    // If video is ready and available, use video.currentTime for most accurate real-time display
-                    // This ensures the progress bar updates smoothly as video plays
-                    if (video && video.readyState >= 2) {
-                      // Use video.currentTime for real-time accuracy (updates every frame)
-                      actualCurrentTime = video.currentTime || currentVideoTime;
-                    }
-                    
-                    // Calculate progress percentage from watchedSegments (REAL progress - SCORM-style)
-                    // NOT from currentTime (which can be faked by dragging to end)
-                    const savedProgress = lessonProgress[selectedLesson.id];
-                    const watchedSeconds = savedProgress?.watchedSeconds || 0;
-                    
-                    // Get real-time watched segments count (SCORM-style)
-                    const watchedSegments = watchedSegmentsRef.current.get(selectedLesson.id) || new Set();
-                    const watchedSegmentsCount = watchedSegments.size;
-                    
-                    // Use watchedSegments count if available (real-time), otherwise use watchedSeconds from DB
-                    const realWatchedSeconds = watchedSegmentsCount > 0 ? watchedSegmentsCount : watchedSeconds;
-                    
-                    if (totalDuration > 0) {
-                      // Calculate from real watched time (segments or DB)
-                      if (realWatchedSeconds > 0) {
-                        progressPercent = Math.min(100, Math.round((realWatchedSeconds / totalDuration) * 100));
-                      } else {
-                        // Fallback: use currentTime if no watched time yet (initial state)
-                        progressPercent = Math.min(100, Math.round((actualCurrentTime / totalDuration) * 100));
-                      }
-                      
-                      // If completed flag is true AND watched enough, show 100%
-                      if (savedProgress?.completed && realWatchedSeconds >= totalDuration * 0.9) {
-                        progressPercent = 100;
-                      }
-                      
-                      // If video ended, show 100% (but only if actually watched enough)
-                      if (video && video.ended) {
-                        // Only mark as 100% if watched enough
-                        if (realWatchedSeconds >= totalDuration * 0.9) {
-                          progressPercent = 100;
-                        }
-                      }
-                    }
-                    
-                    // Use progressUpdateTrigger to force re-render when state changes
-                    // This ensures React re-renders the progress bar when currentVideoTime updates
-                    // The trigger dependency ensures the calculation runs on every render
-                    const _trigger = progressUpdateTrigger;
-                    
-                    // Log for debugging (can be removed in production)
-                    if (progressPercent > 0 && progressPercent % 10 === 0) {
-                      console.log('[Progress Bar] Real-time update:', {
-                        actualCurrentTime: actualCurrentTime.toFixed(2),
-                        watchedSegmentsCount,
-                        watchedSeconds,
-                        realWatchedSeconds,
-                        totalDuration,
-                        progressPercent,
-                        completed: savedProgress?.completed,
-                      });
-                    }
-                    
-                    return (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      zIndex: 1,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        height: 4,
+                        bgcolor: "rgba(255, 255, 255, 0.3)",
+                      }}
+                    >
                       <Box
                         sx={{
-                          position: "absolute",
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          zIndex: 1,
+                          height: "100%",
+                          width: `${selectedLessonProgress.progressPercent}%`,
+                          bgcolor: greenColor,
+                          transition: "width 0.3s ease",
                         }}
-                      >
-                        {/* Progress Bar */}
-                        <Box
-                          sx={{
-                            height: 4,
-                            bgcolor: "rgba(255, 255, 255, 0.3)",
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              height: "100%",
-                              width: `${progressPercent}%`,
-                              bgcolor: greenColor,
-                              transition: "width 0.3s ease",
-                            }}
-                          />
-                        </Box>
-                        {/* Percentage Display */}
-                        <Box
-                          sx={{
-                            position: "absolute",
-                            bottom: 8,
-                            right: 8,
-                            bgcolor: "rgba(0, 0, 0, 0.7)",
-                            color: "white",
-                            px: 1.5,
-                            py: 0.5,
-                            borderRadius: 1,
-                            fontSize: "0.875rem",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {progressPercent}%
-                        </Box>
-                      </Box>
-                    );
-                  })()}
+                      />
+                    </Box>
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        bottom: 8,
+                        right: 8,
+                        bgcolor: "rgba(0, 0, 0, 0.7)",
+                        color: "white",
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {selectedLessonProgress.progressPercent}%
+                    </Box>
+                  </Box>
                 </Box>
               ) : (
                 <Box sx={{ p: 3 }}>
@@ -1881,6 +1885,43 @@ function CourseLearningPage({ courseId, course }) {
                 </Box>
               )}
               <Box sx={{ p: { xs: 2, md: 3 } }}>
+                {selectedLesson.type === "Video" && (
+                  <Box
+                    sx={{
+                      mb: 2,
+                      p: 1.5,
+                      borderRadius: 2,
+                      bgcolor: "#F9FAFB",
+                      border: "1px solid",
+                      borderColor: "divider",
+                    }}
+                  >
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                      <Typography variant="body2" fontWeight={600}>
+                        Live Progress
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700} color={greenColor}>
+                        {selectedLessonProgress.progressPercent}%
+                      </Typography>
+                    </Box>
+                    <LinearProgress
+                      variant="determinate"
+                      value={selectedLessonProgress.progressPercent}
+                      sx={{
+                        height: 8,
+                        borderRadius: 5,
+                        backgroundColor: "#E5FFF7",
+                        [`& .MuiLinearProgress-bar`]: {
+                          backgroundColor: greenColor,
+                        },
+                      }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                      Progress updates instantly while the video plays. Already watched seconds are
+                      preserved and only new watched time is added.
+                    </Typography>
+                  </Box>
+                )}
                 {selectedLesson.summary && (
                   <>
                     <Typography variant="subtitle1" fontWeight={600} gutterBottom>

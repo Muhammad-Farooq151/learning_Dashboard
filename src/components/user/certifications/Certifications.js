@@ -57,6 +57,115 @@ const palette = {
   blue: "#0A66C2",
 };
 
+async function getCourseCompletionStatus(courseId, userId) {
+  const courseDetailsResponse = await getJSON(`courses/${courseId}`);
+  if (!courseDetailsResponse?.success || !courseDetailsResponse.data) {
+    throw new Error("Failed to load course details.");
+  }
+
+  const courseDetails = courseDetailsResponse.data;
+  const allLessons = courseDetails.lessons || [];
+
+  if (allLessons.length === 0) {
+    return {
+      courseDetails,
+      allLessons,
+      totalLessons: 0,
+      progressPercentage: 0,
+      completedLessons: 0,
+      watchedSeconds: 0,
+      totalDurationSeconds: 0,
+      isComplete: false,
+      hasProgress: false,
+    };
+  }
+
+  const progressResponse = await getJSON(`progress/${courseId}?userId=${userId}`);
+  if (!progressResponse?.success || !progressResponse.data) {
+    return {
+      courseDetails,
+      allLessons,
+      totalLessons: allLessons.length,
+      progressPercentage: 0,
+      completedLessons: 0,
+      watchedSeconds: 0,
+      totalDurationSeconds: allLessons.reduce((sum, lesson) => sum + (lesson.duration || 0), 0),
+      isComplete: false,
+      hasProgress: false,
+    };
+  }
+
+  const progressLessons = progressResponse.data.lessons || [];
+  const progressMap = {};
+  progressLessons.forEach((lessonProgress) => {
+    const lessonIdStr = lessonProgress.lessonId?.toString() || lessonProgress.lessonId;
+    progressMap[lessonIdStr] = lessonProgress;
+  });
+
+  const totalDurationSeconds = allLessons.reduce((sum, lesson) => sum + (lesson.duration || 0), 0);
+  let watchedSeconds = 0;
+  let completedLessons = 0;
+
+  allLessons.forEach((lesson) => {
+    const lessonIdStr = lesson._id?.toString() || lesson._id;
+    const lessonProgress = progressMap[lessonIdStr];
+    const lessonDuration = lesson.duration || 0;
+    const safeWatchedSeconds = Math.min(lessonProgress?.watchedSeconds || 0, lessonDuration);
+
+    watchedSeconds += safeWatchedSeconds;
+
+    if (lessonProgress?.completed === true) {
+      completedLessons += 1;
+    }
+  });
+
+  const progressPercentage =
+    totalDurationSeconds > 0 ? Math.min(100, Math.round((watchedSeconds / totalDurationSeconds) * 100)) : 0;
+
+  return {
+    courseDetails,
+    allLessons,
+    totalLessons: allLessons.length,
+    progressPercentage,
+    completedLessons,
+    watchedSeconds,
+    totalDurationSeconds,
+    isComplete: progressPercentage >= 100,
+    hasProgress: progressLessons.length > 0,
+    issuedDate: progressResponse.data.lastAccessedAt || new Date(),
+  };
+}
+
+function showIncompleteProgressDialog(courseTitle, summary) {
+  const {
+    progressPercentage,
+    completedLessons,
+    totalLessons,
+    watchedSeconds,
+    totalDurationSeconds,
+  } = summary;
+
+  Swal.fire({
+    icon: "warning",
+    title: "Course Progress Incomplete",
+    html: `
+      <div style="text-align: left;">
+        <p style="margin-bottom: 10px;"><strong>Certificate is not available yet.</strong></p>
+        <p style="margin-bottom: 5px;">Course: <strong>${courseTitle}</strong></p>
+        <p style="margin-bottom: 5px;">Overall Progress: <strong>${progressPercentage}%</strong></p>
+        <p style="margin-bottom: 5px;">Completed Lessons: <strong>${completedLessons} of ${totalLessons}</strong></p>
+        <p style="margin-bottom: 5px;">Watched Time: <strong>${watchedSeconds} of ${totalDurationSeconds} seconds</strong></p>
+        <p style="margin-top: 15px; color: #666; font-size: 14px;">
+          <strong>Please complete the full course progress first to unlock your certificate.</strong>
+        </p>
+      </div>
+    `,
+    confirmButtonColor: palette.green,
+    confirmButtonText: "OK, I Understand",
+    width: "560px",
+  });
+}
+
 function VerifiedChip() {
   return (
     <Chip
@@ -88,22 +197,9 @@ function CertificatePreview({ course, userName, onClose, onDownload, userId }) {
     setDownloading(true);
     try {
       // Final verification before download
-      const courseDetailsResponse = await getJSON(`courses/${course.id}`);
-      if (!courseDetailsResponse?.success || !courseDetailsResponse.data) {
-        setDownloading(false);
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: "Failed to verify course completion. Please try again.",
-          confirmButtonColor: palette.green,
-        });
-        return;
-      }
+      const completion = await getCourseCompletionStatus(course.id, userId);
 
-      const courseDetails = courseDetailsResponse.data;
-      const allLessons = courseDetails.lessons || [];
-
-      if (allLessons.length === 0) {
+      if (completion.totalLessons === 0) {
         setDownloading(false);
         Swal.fire({
           icon: "warning",
@@ -114,77 +210,9 @@ function CertificatePreview({ course, userName, onClose, onDownload, userId }) {
         return;
       }
 
-      const progressResponse = await getJSON(`progress/${course.id}?userId=${userId}`);
-      if (!progressResponse?.success || !progressResponse.data) {
+      if (!completion.isComplete) {
         setDownloading(false);
-        Swal.fire({
-          icon: "warning",
-          title: "Course Not Completed",
-          html: `
-            <div style="text-align: left;">
-              <p style="margin-bottom: 10px;"><strong>Certificate download is not available.</strong></p>
-              <p style="margin-bottom: 5px;">Course: <strong>${course.title}</strong></p>
-              <p style="margin-bottom: 5px;">Reason: You have not completed all modules.</p>
-              <p style="margin-top: 15px; color: #666; font-size: 14px;">
-                <strong>Please complete all modules (100%) to download your certificate.</strong>
-              </p>
-            </div>
-          `,
-          confirmButtonColor: palette.green,
-          confirmButtonText: "OK, I Understand",
-          width: "500px",
-        });
-        return;
-      }
-
-      const progress = progressResponse.data;
-      const progressLessons = progress.lessons || [];
-
-      // Create a map of lessonId to progress for quick lookup
-      const progressMap = {};
-      progressLessons.forEach((lp) => {
-        const lessonIdStr = lp.lessonId?.toString() || lp.lessonId;
-        progressMap[lessonIdStr] = lp;
-      });
-
-      // Check each lesson from the course against progress data
-      let completedCount = 0;
-      allLessons.forEach((lesson) => {
-        const lessonIdStr = lesson._id?.toString() || lesson._id;
-        const lessonProgress = progressMap[lessonIdStr];
-        // Only count as completed if explicitly marked as completed in database
-        if (lessonProgress && lessonProgress.completed === true) {
-          completedCount++;
-        }
-      });
-
-      const totalLessons = allLessons.length;
-      const isComplete = completedCount === totalLessons && totalLessons > 0;
-
-      if (!isComplete) {
-        setDownloading(false);
-        const progressPercentage = totalLessons > 0 
-          ? Math.round((completedCount / totalLessons) * 100) 
-          : 0;
-        
-        Swal.fire({
-          icon: "warning",
-          title: "Course Not Completed",
-          html: `
-            <div style="text-align: left;">
-              <p style="margin-bottom: 10px;"><strong>Certificate download is not available.</strong></p>
-              <p style="margin-bottom: 5px;">Course: <strong>${course.title}</strong></p>
-              <p style="margin-bottom: 5px;">Progress: <strong>${completedCount} out of ${totalLessons} modules completed (${progressPercentage}%)</strong></p>
-              <p style="margin-bottom: 5px;">Remaining: <strong>${totalLessons - completedCount} modules</strong></p>
-              <p style="margin-top: 15px; color: #666; font-size: 14px;">
-                <strong>Please complete all modules (100%) to download your certificate.</strong>
-              </p>
-            </div>
-          `,
-          confirmButtonColor: palette.green,
-          confirmButtonText: "OK, I Understand",
-          width: "550px",
-        });
+        showIncompleteProgressDialog(course.title, completion);
         return;
       }
 
@@ -485,50 +513,13 @@ export default function Certifications() {
         const completedCourses = await Promise.all(
           enrolledCourses.map(async (course) => {
             try {
-              // Fetch full course details to get all lessons
-              const courseDetailsResponse = await getJSON(`courses/${course.id}`);
-              if (!courseDetailsResponse?.success || !courseDetailsResponse.data) {
-                return null;
-              }
+              const completion = await getCourseCompletionStatus(course.id, userId);
 
-              const courseDetails = courseDetailsResponse.data;
-              const allLessons = courseDetails.lessons || [];
-
-              if (allLessons.length === 0) {
+              if (completion.totalLessons === 0) {
                 return null; // No lessons, can't be complete
               }
 
-              // Fetch progress for this course
-              const progressResponse = await getJSON(`progress/${course.id}?userId=${userId}`);
-              if (!progressResponse?.success || !progressResponse.data) {
-                return null; // No progress, not complete
-              }
-
-              const progress = progressResponse.data;
-              const progressLessons = progress.lessons || [];
-
-              // Create a map of lessonId to progress for quick lookup
-              const progressMap = {};
-              progressLessons.forEach((lp) => {
-                const lessonIdStr = lp.lessonId?.toString() || lp.lessonId;
-                progressMap[lessonIdStr] = lp;
-              });
-
-              // Check each lesson from the course against progress data
-              let completedCount = 0;
-              allLessons.forEach((lesson) => {
-                const lessonIdStr = lesson._id?.toString() || lesson._id;
-                const lessonProgress = progressMap[lessonIdStr];
-                // Only count as completed if explicitly marked as completed in database
-                if (lessonProgress && lessonProgress.completed === true) {
-                  completedCount++;
-                }
-              });
-
-              // Check if all lessons are completed
-              const isComplete = completedCount === allLessons.length && allLessons.length > 0;
-
-              if (isComplete) {
+              if (completion.isComplete) {
                 // Check if feedback already exists for this course
                 let hasFeedback = false;
                 try {
@@ -546,8 +537,8 @@ export default function Certifications() {
                 return {
                   id: course.id,
                   title: course.title,
-                  issuedDate: progress.lastAccessedAt || new Date(),
-                  progress: 100,
+                  issuedDate: completion.issuedDate || new Date(),
+                  progress: completion.progressPercentage,
                   hasFeedback: hasFeedback,
                 };
               }
@@ -589,22 +580,9 @@ export default function Certifications() {
         return;
       }
 
-      // Re-verify completion status before allowing download
-      const courseDetailsResponse = await getJSON(`courses/${course.id}`);
-      if (!courseDetailsResponse?.success || !courseDetailsResponse.data) {
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: "Failed to load course details. Please try again.",
-          confirmButtonColor: palette.green,
-        });
-        return;
-      }
+      const completion = await getCourseCompletionStatus(course.id, userId);
 
-      const courseDetails = courseDetailsResponse.data;
-      const allLessons = courseDetails.lessons || [];
-
-      if (allLessons.length === 0) {
+      if (completion.totalLessons === 0) {
         Swal.fire({
           icon: "warning",
           title: "Course Not Available",
@@ -614,80 +592,8 @@ export default function Certifications() {
         return;
       }
 
-      // Fetch current progress
-      const progressResponse = await getJSON(`progress/${course.id}?userId=${userId}`);
-      if (!progressResponse?.success || !progressResponse.data) {
-        Swal.fire({
-          icon: "warning",
-          title: "Course Not Completed",
-          html: `
-            <div style="text-align: left;">
-              <p style="margin-bottom: 10px;"><strong>Certificate download is not available.</strong></p>
-              <p style="margin-bottom: 5px;">Course: <strong>${course.title}</strong></p>
-              <p style="margin-bottom: 5px;">Reason: You have not started this course yet.</p>
-              <p style="margin-top: 15px; color: #666; font-size: 14px;">
-                <strong>Please complete all modules (100%) to download your certificate.</strong>
-              </p>
-            </div>
-          `,
-          confirmButtonColor: palette.green,
-          confirmButtonText: "OK, I Understand",
-          width: "500px",
-        });
-        return;
-      }
-
-      const progress = progressResponse.data;
-      const progressLessons = progress.lessons || [];
-
-      // Create a map of lessonId to progress for quick lookup
-      const progressMap = {};
-      progressLessons.forEach((lp) => {
-        const lessonIdStr = lp.lessonId?.toString() || lp.lessonId;
-        progressMap[lessonIdStr] = lp;
-      });
-
-      // Check each lesson from the course against progress data
-      let completedCount = 0;
-      allLessons.forEach((lesson) => {
-        const lessonIdStr = lesson._id?.toString() || lesson._id;
-        const lessonProgress = progressMap[lessonIdStr];
-        // Only count as completed if explicitly marked as completed in database
-        if (lessonProgress && lessonProgress.completed === true) {
-          completedCount++;
-        }
-      });
-
-      const totalLessons = allLessons.length;
-      const isComplete = completedCount === totalLessons && totalLessons > 0;
-
-      if (!isComplete) {
-        const progressPercentage = totalLessons > 0 
-          ? Math.round((completedCount / totalLessons) * 100) 
-          : 0;
-        
-        Swal.fire({
-          icon: "warning",
-          title: "Course Not Completed",
-          html: `
-            <div style="text-align: left;">
-              <p style="margin-bottom: 10px;"><strong>Certificate download is not available.</strong></p>
-              <p style="margin-bottom: 5px;">Course: <strong>${course.title}</strong></p>
-              <p style="margin-bottom: 5px;">Progress: <strong>${completedCount} out of ${totalLessons} modules completed (${progressPercentage}%)</strong></p>
-              <p style="margin-bottom: 5px;">Remaining: <strong>${totalLessons - completedCount} modules</strong></p>
-              <p style="margin-top: 15px; color: #666; font-size: 14px;">
-                <strong>Please complete all modules (100%) to download your certificate.</strong>
-              </p>
-              <p style="margin-top: 10px; color: #37C087; font-size: 13px;">
-                ✓ All modules must be 100% complete<br/>
-                ✓ You need to finish all lessons in the course
-              </p>
-            </div>
-          `,
-          confirmButtonColor: palette.green,
-          confirmButtonText: "OK, I Understand",
-          width: "550px",
-        });
+      if (!completion.isComplete) {
+        showIncompleteProgressDialog(course.title, completion);
         return;
       }
 
@@ -1005,13 +911,13 @@ export default function Certifications() {
       sx={{
         width: "100%",
         mx: "auto",
-        px: { xs: 2, sm: 3 },
-        py: { xs: 2, sm: 3 },
+        // px: { xs: 2, sm: 3 },
+        // py: { xs: 2, sm: 3 },
       }}
     >
-      <Typography variant="h6" sx={{ fontWeight: 700, color: palette.gray900, mb: 2 }}>
+      {/* <Typography variant="h6" sx={{ fontWeight: 700, color: palette.gray900, mb: 2 }}>
         Certificates
-      </Typography>
+      </Typography> */}
 
       {certificates.length === 0 ? (
         <Paper
