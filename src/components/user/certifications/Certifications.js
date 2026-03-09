@@ -57,6 +57,50 @@ const palette = {
   blue: "#0A66C2",
 };
 
+function getWatchedSecondsFromRanges(watchedRanges = [], lessonDuration = 0) {
+  if (!Array.isArray(watchedRanges) || watchedRanges.length === 0) {
+    return 0;
+  }
+
+  const watchedSegments = new Set();
+
+  watchedRanges.forEach((range) => {
+    const start = Number.isFinite(range?.start) ? Math.floor(range.start) : null;
+    const end = Number.isFinite(range?.end) ? Math.floor(range.end) : null;
+
+    if (start === null || end === null || end < start) return;
+
+    for (let second = start; second <= end; second += 1) {
+      if (second >= 0 && second <= lessonDuration) {
+        watchedSegments.add(second);
+      }
+    }
+  });
+
+  return watchedSegments.size;
+}
+
+function getRealLessonProgress(lessonProgress, lessonDuration) {
+  const watchedSecondsFromRanges = getWatchedSecondsFromRanges(
+    lessonProgress?.watchedRanges,
+    lessonDuration
+  );
+
+  const watchedSeconds =
+    watchedSecondsFromRanges > 0
+      ? watchedSecondsFromRanges
+      : Math.min(lessonProgress?.watchedSeconds || 0, lessonDuration);
+
+  const progressPercentage =
+    lessonDuration > 0 ? Math.min(100, Math.round((watchedSeconds / lessonDuration) * 100)) : 0;
+
+  return {
+    watchedSeconds,
+    progressPercentage,
+    isComplete: progressPercentage >= 100,
+  };
+}
+
 async function getCourseCompletionStatus(courseId, userId) {
   const courseDetailsResponse = await getJSON(`courses/${courseId}`);
   if (!courseDetailsResponse?.success || !courseDetailsResponse.data) {
@@ -110,11 +154,11 @@ async function getCourseCompletionStatus(courseId, userId) {
     const lessonIdStr = lesson._id?.toString() || lesson._id;
     const lessonProgress = progressMap[lessonIdStr];
     const lessonDuration = lesson.duration || 0;
-    const safeWatchedSeconds = Math.min(lessonProgress?.watchedSeconds || 0, lessonDuration);
+    const realLessonProgress = getRealLessonProgress(lessonProgress, lessonDuration);
 
-    watchedSeconds += safeWatchedSeconds;
+    watchedSeconds += realLessonProgress.watchedSeconds;
 
-    if (lessonProgress?.completed === true) {
+    if (realLessonProgress.isComplete) {
       completedLessons += 1;
     }
   });
