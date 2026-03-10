@@ -280,6 +280,7 @@ function UsersManagement() {
                 anchorEl={statusAnchorEl}
                 open={Boolean(statusAnchorEl)}
                 onClose={handleStatusClose}
+                disableScrollLock
                 anchorOrigin={{
                   vertical: "bottom",
                   horizontal: "left",
@@ -708,6 +709,7 @@ function UsersManagement() {
               anchorEl={reasonAnchorEl}
               open={Boolean(reasonAnchorEl)}
               onClose={handleReasonClose}
+              disableScrollLock
               anchorOrigin={{
                 vertical: "bottom",
                 horizontal: "left",
