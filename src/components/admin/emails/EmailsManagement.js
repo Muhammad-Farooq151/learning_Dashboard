@@ -158,6 +158,13 @@ const buildPreviewPayload = (template, sendState = null) => {
   };
 };
 
+const preferenceKeyToFieldMap = {
+  "course-updates": "courseUpdates",
+  "promotions-offers": "promotionsOffers",
+  "refund-status": "refundStatus",
+  "recommended-courses": "recommendedCourses",
+};
+
 const fireDialogAlert = async (options) => {
   const previousDidOpen = options?.didOpen;
 
@@ -439,7 +446,11 @@ function PreviewDialog({ open, onClose, preview }) {
   );
 }
 
-export default function EmailsManagement() {
+export default function EmailsManagement({
+  preferenceKey = null,
+  pageTitle = "Email Campaigns",
+  pageDescription = "Template cards are the primary workflow now. Preview and sending both happen inside professional dialogs.",
+}) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
@@ -654,10 +665,15 @@ export default function EmailsManagement() {
     setUsersPage(0);
   }, [userSearch]);
 
-  const activeUsers = useMemo(
-    () => users.filter((user) => user.status === "active"),
-    [users]
-  );
+  const activeUsers = useMemo(() => {
+    const baseUsers = users.filter((user) => user.status === "active");
+    if (!preferenceKey) return baseUsers;
+
+    const preferenceField = preferenceKeyToFieldMap[preferenceKey];
+    if (!preferenceField) return baseUsers;
+
+    return baseUsers.filter((user) => user.emailPreferences?.[preferenceField] === true);
+  }, [users, preferenceKey]);
 
   const allTemplates = useMemo(
     () => [...FRONTEND_EMAIL_TEMPLATES, ...customTemplates],
@@ -770,10 +786,10 @@ export default function EmailsManagement() {
       >
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 800, mb: 0.5 }}>
-            Email Campaigns
+            {pageTitle}
           </Typography>
           <Typography color="text.secondary">
-            Template cards are the primary workflow now. Preview and sending both happen inside professional dialogs.
+            {pageDescription}
           </Typography>
         </Box>
 
@@ -1051,7 +1067,9 @@ export default function EmailsManagement() {
                 {paginatedUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} sx={{ py: 5, textAlign: "center", color: "text.secondary" }}>
-                      No learners found for the current search.
+                      {preferenceKey
+                        ? "No learners with this email preference are available for the current search."
+                        : "No learners found for the current search."}
                     </TableCell>
                   </TableRow>
                 ) : (

@@ -5,6 +5,7 @@ import {
   Backdrop,
   Box,
   Button,
+  Collapse,
   CircularProgress,
   Divider,
   Drawer,
@@ -19,6 +20,8 @@ import {
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import PowerSettingsNewOutlinedIcon from "@mui/icons-material/PowerSettingsNewOutlined";
 import { usePathname, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
@@ -29,7 +32,84 @@ import {
   getAdminRouteTitle,
 } from "@/components/admin/navigation/navConfig";
 
-function MobileNavItem({ item, active, onNavigate }) {
+function MobileNavItem({ item, active, onNavigate, pathname }) {
+  const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+  const isTreeActive = hasChildren && item.children.some((child) => pathname === child.href);
+  const [open, setOpen] = useState(isTreeActive);
+
+  useEffect(() => {
+    if (isTreeActive) {
+      setOpen(true);
+    }
+  }, [isTreeActive]);
+
+  if (hasChildren) {
+    return (
+      <Box sx={{ mb: 0.5 }}>
+        <ListItemButton
+          onClick={() => setOpen((prev) => !prev)}
+          sx={{
+            borderRadius: 2,
+            px: 1.5,
+            py: 1.25,
+            bgcolor: isTreeActive ? greenColor : "transparent",
+            color: isTreeActive ? "common.white" : "text.primary",
+            "& .MuiListItemIcon-root": {
+              minWidth: 38,
+              color: isTreeActive ? "common.white" : "text.secondary",
+            },
+            "&:hover": {
+              bgcolor: isTreeActive ? greenColor : "rgba(0,0,0,0.04)",
+            },
+          }}
+        >
+          <ListItemIcon>{item.icon}</ListItemIcon>
+          <ListItemText
+            primary={
+              <Typography fontSize="0.95rem" fontWeight={700}>
+                {item.label}
+              </Typography>
+            }
+          />
+          {open ? <ExpandLessRoundedIcon /> : <ExpandMoreRoundedIcon />}
+        </ListItemButton>
+
+        <Collapse in={open} timeout="auto" unmountOnExit>
+          <List disablePadding sx={{ pl: 2, mt: 0.5 }}>
+            {item.children.map((child) => {
+              const childActive = pathname === child.href;
+              return (
+                <ListItemButton
+                  key={child.href}
+                  onClick={() => onNavigate(child.href)}
+                  sx={{
+                    borderRadius: 2,
+                    px: 1.5,
+                    py: 1.1,
+                    mb: 0.5,
+                    bgcolor: childActive ? "rgba(50, 157, 123, 0.12)" : "transparent",
+                    color: childActive ? greenColor : "text.secondary",
+                    "&:hover": {
+                      bgcolor: childActive ? "rgba(50, 157, 123, 0.16)" : "rgba(0,0,0,0.04)",
+                    },
+                  }}
+                >
+                  <ListItemText
+                    primary={
+                      <Typography fontSize="0.88rem" fontWeight={childActive ? 700 : 500}>
+                        {child.label}
+                      </Typography>
+                    }
+                  />
+                </ListItemButton>
+              );
+            })}
+          </List>
+        </Collapse>
+      </Box>
+    );
+  }
+
   return (
     <ListItemButton
       onClick={() => onNavigate(item.href)}
@@ -215,6 +295,7 @@ function AdminNavbar() {
               item={item}
               active={pathname?.startsWith(item.href)}
               onNavigate={handleNavigate}
+              pathname={pathname}
             />
           ))}
         </List>
