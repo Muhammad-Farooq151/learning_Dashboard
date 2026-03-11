@@ -36,8 +36,10 @@ import "react-phone-number-input/style.css";
 import "./settings-phone-input.css";
 import { useFormik } from "formik";
 import * as Yup from "yup";
+import Swal from "sweetalert2";
+import { useRouter } from "next/navigation";
 import { postJSON, putJSON } from "@/utils/http";
-import { getStoredUser, updateStoredUser } from "@/utils/authStorage";
+import { clearAuthToken, getStoredUser, updateStoredUser } from "@/utils/authStorage";
 import { ClipLoader } from "react-spinners";
 import { toast } from "react-hot-toast";
 
@@ -190,6 +192,7 @@ const createPasswordSchema = Yup.object({
 });
 
 function SettingsPage() {
+  const router = useRouter();
   const [profileForm, setProfileForm] = useState({
     fullName: "",
     email: "",
@@ -201,6 +204,7 @@ function SettingsPage() {
   const [profileError, setProfileError] = useState("");
   const [profileSubmitting, setProfileSubmitting] = useState(false);
   const [profileConfirmOpen, setProfileConfirmOpen] = useState(false);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState({
     old: false,
     new: false,
@@ -225,8 +229,43 @@ function SettingsPage() {
     initialValues: { oldPassword: "", newPassword: "", confirmPassword: "" },
     validationSchema: passwordSchema,
     onSubmit: async (values, helpers) => {
-      toast.success("Password updated successfully.");
-      helpers.resetForm();
+      const storedUser = getStoredUser();
+
+      if (!storedUser?.id) {
+        toast.error("Session expired. Please log in again.");
+        return;
+      }
+
+      setPasswordSubmitting(true);
+      try {
+        await putJSON("users/password", {
+          userId: storedUser.id,
+          oldPassword: values.oldPassword,
+          newPassword: values.newPassword,
+        });
+        helpers.resetForm();
+        await Swal.fire({
+          icon: "success",
+          title: "Password Changed",
+          text: "Password change ho gaya hai. Dobara login karna padega.",
+          confirmButtonColor: "#16A249",
+          confirmButtonText: "OK",
+        });
+        clearAuthToken();
+        router.replace("/");
+      } catch (error) {
+        if ((error.message || "").toLowerCase().includes("current password")) {
+          helpers.setFieldError("oldPassword", error.message);
+          helpers.setFieldTouched("oldPassword", true, false);
+        } else if ((error.message || "").toLowerCase().includes("differ from current")) {
+          helpers.setFieldError("newPassword", error.message);
+          helpers.setFieldTouched("newPassword", true, false);
+        } else {
+          toast.error(error.message || "Failed to update password.");
+        }
+      } finally {
+        setPasswordSubmitting(false);
+      }
     },
   });
 
@@ -657,19 +696,32 @@ function SettingsPage() {
             </Box>
 
               <Stack direction="row" justifyContent="flex-end" spacing={2} mt={3}>
-                <Button variant="outlined" sx={{ textTransform: "none" }}>
+                <Button
+                  variant="outlined"
+                  sx={{ textTransform: "none" }}
+                  onClick={formik.handleReset}
+                  disabled={passwordSubmitting}
+                >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   variant="contained"
+                  disabled={passwordSubmitting}
                   sx={{
                     textTransform: "none",
                     bgcolor: "#16A249",
                     ":hover": { bgcolor: "#13873C" },
                   }}
                 >
-                  Update Password
+                  {passwordSubmitting ? (
+                    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+                      <ClipLoader size={18} color="#fff" />
+                      Updating...
+                    </Box>
+                  ) : (
+                    "Update Password"
+                  )}
                 </Button>
               </Stack>
             </Box>
