@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -36,6 +36,7 @@ import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
@@ -448,6 +449,7 @@ function PreviewDialog({ open, onClose, preview }) {
 
 export default function EmailsManagement({
   preferenceKey = null,
+  allowedTemplateTypes = null,
   pageTitle = "Email Campaigns",
   pageDescription = "Template cards are the primary workflow now. Preview and sending both happen inside professional dialogs.",
 }) {
@@ -603,63 +605,63 @@ export default function EmailsManagement({
     },
   });
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        const [usersRes, coursesRes, templatesRes, logsRes] = await Promise.all([
-          getJSON("users"),
-          getJSON("courses"),
-          getJSON("admins/email-templates").catch(() => ({ success: false, data: [] })),
-          getJSON("admins/email-logs").catch(() => ({ success: false, data: [] })),
-        ]);
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [usersRes, coursesRes, templatesRes, logsRes] = await Promise.all([
+        getJSON("users"),
+        getJSON("courses"),
+        getJSON("admins/email-templates").catch(() => ({ success: false, data: [] })),
+        getJSON("admins/email-logs").catch(() => ({ success: false, data: [] })),
+      ]);
 
-        if (usersRes?.success && Array.isArray(usersRes.data)) {
-          setUsers(usersRes.data.filter((user) => user.role === "user"));
-        }
-
-        if (coursesRes?.success && Array.isArray(coursesRes.data)) {
-          setCourses(coursesRes.data);
-        }
-
-        if (templatesRes?.success && Array.isArray(templatesRes.data)) {
-          setCustomTemplates(
-            templatesRes.data.map((template) => ({
-              id: template._id,
-              source: "database",
-              type: template.type || EMAIL_TYPES.CUSTOM,
-              name: template.name,
-              category: template.category || "Custom",
-              description: template.description || "",
-              subject: template.subject || "",
-              heading: template.heading || "",
-              body: template.body || "",
-              ctaText: template.ctaText || "",
-              ctaUrl: template.ctaUrl || "",
-              iconKey: "custom",
-              createdAt: template.createdAt,
-            }))
-          );
-        }
-
-        if (logsRes?.success && Array.isArray(logsRes.data)) {
-          setEmailLogs(logsRes.data);
-        }
-      } catch (error) {
-        console.error("Error loading email data:", error);
-        fireDialogAlert({
-          icon: "error",
-          title: "Load Failed",
-          text: "Unable to load the email workspace right now.",
-          confirmButtonColor: greenColor,
-        });
-      } finally {
-        setLoading(false);
+      if (usersRes?.success && Array.isArray(usersRes.data)) {
+        setUsers(usersRes.data.filter((user) => user.role === "user"));
       }
-    };
 
-    loadData();
+      if (coursesRes?.success && Array.isArray(coursesRes.data)) {
+        setCourses(coursesRes.data);
+      }
+
+      if (templatesRes?.success && Array.isArray(templatesRes.data)) {
+        setCustomTemplates(
+          templatesRes.data.map((template) => ({
+            id: template._id,
+            source: "database",
+            type: template.type || EMAIL_TYPES.CUSTOM,
+            name: template.name,
+            category: template.category || "Custom",
+            description: template.description || "",
+            subject: template.subject || "",
+            heading: template.heading || "",
+            body: template.body || "",
+            ctaText: template.ctaText || "",
+            ctaUrl: template.ctaUrl || "",
+            iconKey: "custom",
+            createdAt: template.createdAt,
+          }))
+        );
+      }
+
+      if (logsRes?.success && Array.isArray(logsRes.data)) {
+        setEmailLogs(logsRes.data);
+      }
+    } catch (error) {
+      console.error("Error loading email data:", error);
+      fireDialogAlert({
+        icon: "error",
+        title: "Load Failed",
+        text: "Unable to load the email workspace right now.",
+        confirmButtonColor: greenColor,
+      });
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     setUsersPage(0);
@@ -675,10 +677,17 @@ export default function EmailsManagement({
     return baseUsers.filter((user) => user.emailPreferences?.[preferenceField] === true);
   }, [users, preferenceKey]);
 
-  const allTemplates = useMemo(
-    () => [...FRONTEND_EMAIL_TEMPLATES, ...customTemplates],
-    [customTemplates]
-  );
+  const allTemplates = useMemo(() => {
+    const mergedTemplates = [...FRONTEND_EMAIL_TEMPLATES, ...customTemplates];
+
+    if (!Array.isArray(allowedTemplateTypes) || allowedTemplateTypes.length === 0) {
+      return mergedTemplates;
+    }
+
+    return mergedTemplates.filter((template) =>
+      allowedTemplateTypes.includes(template.type)
+    );
+  }, [allowedTemplateTypes, customTemplates]);
 
   const filteredUsers = useMemo(() => {
     const query = userSearch.trim().toLowerCase();
@@ -793,21 +802,41 @@ export default function EmailsManagement({
           </Typography>
         </Box>
 
-        <Button
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          onClick={() => setTemplateDialogOpen(true)}
-          sx={{
-            borderRadius: 999,
-            bgcolor: greenColor,
-            textTransform: "none",
-            px: 2.5,
-            fontWeight: 700,
-            "&:hover": { bgcolor: greenColor, opacity: 0.92 },
-          }}
-        >
-          Add Custom Template
-        </Button>
+        <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
+          <Button
+            variant="outlined"
+            startIcon={loading ? <ClipLoader size={14} color={greenColor} /> : <RefreshRoundedIcon />}
+            onClick={loadData}
+            disabled={loading}
+            sx={{
+              borderRadius: 999,
+              textTransform: "none",
+              px: 2.25,
+              fontWeight: 700,
+              borderColor: "#D0D5DD",
+              color: "#344054",
+              "&:hover": { borderColor: greenColor, bgcolor: "#F8FFFC" },
+            }}
+          >
+            Refresh
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<AddRoundedIcon />}
+            onClick={() => setTemplateDialogOpen(true)}
+            sx={{
+              borderRadius: 999,
+              bgcolor: greenColor,
+              textTransform: "none",
+              px: 2.5,
+              fontWeight: 700,
+              "&:hover": { bgcolor: greenColor, opacity: 0.92 },
+            }}
+          >
+            Add Custom Template
+          </Button>
+        </Stack>
       </Stack>
 
       <Grid container spacing={2.5} sx={{ mb: 3 }}>

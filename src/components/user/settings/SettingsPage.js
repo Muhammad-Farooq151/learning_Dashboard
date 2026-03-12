@@ -252,8 +252,17 @@ function SettingsPage() {
 
   const handleToggleChange = async (id) => {
     const storedUser = getStoredUser();
+    const currentSetting = toggleSettings.find((item) => item.id === id);
+    const isEnabled = !notifications[id];
     if (!storedUser?.id) {
-      toast.error("Session expired. Please log in again.");
+      await Swal.fire({
+        icon: "error",
+        title: "Session Expired",
+        text: "Please log in again to update notification preferences.",
+        scrollbarPadding: false,
+        confirmButtonColor: "#d33",
+        confirmButtonText: "OK",
+      });
       return;
     }
 
@@ -270,9 +279,26 @@ function SettingsPage() {
         userId: storedUser.id,
         emailPreferences: switchStateToPreferences(nextNotifications),
       });
+      await Swal.fire({
+        icon: "success",
+        title: "Preferences Updated",
+        text: `${currentSetting?.label || "Notification preference"} has been ${
+          isEnabled ? "enabled" : "disabled"
+        } successfully.`,
+        scrollbarPadding: false,
+        confirmButtonColor: "#16A249",
+        confirmButtonText: "OK",
+      });
     } catch (error) {
       setNotifications(notifications);
-      toast.error(error.message || "Failed to update notification preferences.");
+      await Swal.fire({
+        icon: "error",
+        title: "Update Failed",
+        text: error.message || "Failed to update notification preferences.",
+        scrollbarPadding: false,
+        confirmButtonColor: "#d33",
+        confirmButtonText: "OK",
+      });
     } finally {
       setNotificationSavingId("");
     }
@@ -301,6 +327,7 @@ function SettingsPage() {
           icon: "success",
           title: "Password Changed",
           text: "Your password has been changed. Please log in again.",
+          scrollbarPadding: false,
           confirmButtonColor: "#16A249",
           confirmButtonText: "OK",
         });
