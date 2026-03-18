@@ -5,6 +5,7 @@ import { Box, CircularProgress, Typography, Stack } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getStoredUser, getStoredToken } from "@/utils/authStorage";
+import AdminNavbar from "@/components/admin/bars/AdminNavbar";
 
 export default function WebLayout({ children }) {
   const router = useRouter();
@@ -72,6 +73,7 @@ export default function WebLayout({ children }) {
       </Box>
       <Box width={"100%"} ml={["0%","0%","18%"]} >
         {/* Navbar */}
+        <AdminNavbar/>
         {children}
       </Box>
     </Box>

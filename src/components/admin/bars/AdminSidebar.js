@@ -14,32 +14,13 @@ import {
   Divider,
   IconButton,
 } from "@mui/material";
-import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
-import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
-import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
-import ExploreOutlinedIcon from "@mui/icons-material/ExploreOutlined";
-import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import PowerSettingsNewOutlinedIcon from "@mui/icons-material/PowerSettingsNewOutlined";
 import { ClipLoader } from "react-spinners";
 import { greenColor } from "@/components/utils/Colors";
 import Swal from "sweetalert2";
 import { clearAuthToken } from "@/utils/authStorage";
-import { SupervisedUserCircle } from "@mui/icons-material";
-import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
-import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
-import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
-
-const NAV = [
-  { label: "Dashboard", href: "/admin/dashboard", icon: <DashboardRoundedIcon /> },
-  { label: "Courses", href: "/admin/courses", icon: <MenuBookOutlinedIcon /> },
-  { label: "Users", href: "/admin/users", icon: <SupervisedUserCircle /> },
-  { label: "Tutors", href: "/admin/tutors", icon: <SchoolOutlinedIcon /> },
-  { label: "Admins", href: "/admin/admins", icon: <AdminPanelSettingsOutlinedIcon /> },
-  { label: "Emails", href: "/admin/emails", icon: <EmailOutlinedIcon /> },
-  { label: "Refunds", href: "/admin/refunds", icon: <WorkspacePremiumOutlinedIcon /> },
-  { label: "Settings", href: "/admin/settings", icon: <SettingsOutlinedIcon /> },
-];
+import { ADMIN_NAV_ITEMS } from "@/components/admin/navigation/navConfig";
 
 function NavItem({ item, active, onNavigate }) {
   return (
@@ -120,7 +101,7 @@ export default function AdminSidebar() {
 
   const activeKey = useMemo(() => {
     let best = "";
-    for (const n of NAV) {
+    for (const n of ADMIN_NAV_ITEMS) {
       if (pathname?.startsWith(n.href) && n.href.length > best.length) best = n.href;
     }
     return best;
@@ -247,7 +228,7 @@ export default function AdminSidebar() {
 
         {/* Nav */}
         <List disablePadding sx={{ px: 0.5 }}>
-          {NAV.map((item) => (
+          {ADMIN_NAV_ITEMS.map((item) => (
             <NavItem
               key={item.href}
               item={item}
