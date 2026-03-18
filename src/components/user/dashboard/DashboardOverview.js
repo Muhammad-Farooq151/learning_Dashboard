@@ -300,13 +300,13 @@ function DashboardOverview() {
   }, [monthlyProgress]);
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 } }}>
-      <Typography variant="h4" fontWeight={700} mb={1}>
+    <Box >
+      {/* <Typography variant="h4" fontWeight={700} mb={1}>
         Welcome back!
       </Typography>
       <Typography variant="body1" color="text.secondary" mb={4}>
         Here&apos;s your learning progress and statistics.
-      </Typography>
+      </Typography> */}
 
       {/* Statistics Cards - Keep Same */}
       <Grid container spacing={2} mb={4}>

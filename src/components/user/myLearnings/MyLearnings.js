@@ -21,6 +21,95 @@ import { useRouter } from "next/navigation";
 import { getJSON } from "@/utils/http";
 import { getStoredUserId } from "@/utils/authStorage";
 
+function getWatchedSecondsFromRanges(watchedRanges = [], lessonDuration = 0) {
+  if (!Array.isArray(watchedRanges) || watchedRanges.length === 0) {
+    return 0;
+  }
+
+  const watchedSegments = new Set();
+
+  watchedRanges.forEach((range) => {
+    const start = Number.isFinite(range?.start) ? Math.floor(range.start) : null;
+    const end = Number.isFinite(range?.end) ? Math.floor(range.end) : null;
+
+    if (start === null || end === null || end < start) return;
+
+    for (let second = start; second <= end; second += 1) {
+      if (second >= 0 && second <= lessonDuration) {
+        watchedSegments.add(second);
+      }
+    }
+  });
+
+  return watchedSegments.size;
+}
+
+function getRealLessonProgress(lessonProgress, lessonDuration) {
+  const watchedSecondsFromRanges = getWatchedSecondsFromRanges(
+    lessonProgress?.watchedRanges,
+    lessonDuration
+  );
+
+  const watchedSeconds =
+    watchedSecondsFromRanges > 0
+      ? watchedSecondsFromRanges
+      : Math.min(lessonProgress?.watchedSeconds || 0, lessonDuration);
+
+  const progressPercentage =
+    lessonDuration > 0 ? Math.min(100, Math.round((watchedSeconds / lessonDuration) * 100)) : 0;
+
+  return {
+    watchedSeconds,
+    progressPercentage,
+    isComplete: progressPercentage >= 100,
+  };
+}
+
+function getOverallCourseProgress(allLessons, progressLessons) {
+  const progressMap = {};
+
+  progressLessons.forEach((lessonProgress) => {
+    const lessonIdStr = lessonProgress.lessonId?.toString() || lessonProgress.lessonId;
+    progressMap[lessonIdStr] = lessonProgress;
+  });
+
+  const totalLessons = allLessons.length;
+  const totalDurationSeconds = allLessons.reduce(
+    (sum, lesson) => sum + (lesson.duration || 0),
+    0
+  );
+
+  let completedLessons = 0;
+  let watchedSeconds = 0;
+
+  allLessons.forEach((lesson) => {
+    const lessonIdStr = lesson._id?.toString() || lesson._id;
+    const lessonProgress = progressMap[lessonIdStr];
+    const lessonDuration = lesson.duration || 0;
+    const realLessonProgress = getRealLessonProgress(lessonProgress, lessonDuration);
+
+    if (realLessonProgress.isComplete) {
+      completedLessons += 1;
+    }
+
+    watchedSeconds += realLessonProgress.watchedSeconds;
+  });
+
+  const progressPercentage =
+    totalDurationSeconds > 0
+      ? Math.min(100, Math.round((watchedSeconds / totalDurationSeconds) * 100))
+      : 0;
+
+  return {
+    totalLessons,
+    completedLessons,
+    watchedSeconds,
+    totalDurationSeconds,
+    progressPercentage,
+    isComplete: progressPercentage >= 100 && totalLessons > 0,
+  };
+}
+
 function MyLearnings() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -90,43 +179,17 @@ function MyLearnings() {
 
                 const progress = progressResponse.data;
                 const progressLessons = progress.lessons || [];
-
-                // Create a map of lessonId to progress for quick lookup
-                const progressMap = {};
-                progressLessons.forEach((lp) => {
-                  const lessonIdStr = lp.lessonId?.toString() || lp.lessonId;
-                  progressMap[lessonIdStr] = lp;
-                });
-
-                // Check each lesson from the course against progress data
-                let completedCount = 0;
-                allLessons.forEach((lesson) => {
-                  const lessonIdStr = lesson._id?.toString() || lesson._id;
-                  const lessonProgress = progressMap[lessonIdStr];
-                  // Only count as completed if explicitly marked as completed in database
-                  if (lessonProgress && lessonProgress.completed === true) {
-                    completedCount++;
-                  }
-                });
-
-                // Calculate progress percentage based on all lessons
-                const progressPercentage =
-                  allLessons.length > 0
-                    ? Math.round((completedCount / allLessons.length) * 100)
-                    : 0;
-
-                // Check if course is 100% complete (all lessons must be completed)
-                const isComplete = completedCount === allLessons.length && allLessons.length > 0;
+                const progressSummary = getOverallCourseProgress(allLessons, progressLessons);
 
                 return {
                   id: course.id,
                   title: course.title,
                   desc: course.description,
-                  progress: progressPercentage,
+                  progress: progressSummary.progressPercentage,
                   img: course.thumbnailUrl || "/images/default-course.png",
-                  isComplete: isComplete,
-                  completedLessons: completedCount,
-                  totalLessons: allLessons.length,
+                  isComplete: progressSummary.isComplete,
+                  completedLessons: progressSummary.completedLessons,
+                  totalLessons: progressSummary.totalLessons,
                 };
               } catch (error) {
                 console.error(`Error fetching progress for course ${course.id}:`, error);
@@ -177,9 +240,14 @@ function MyLearnings() {
 
   const renderSkeleton = () => (
     <Box mb={2}>
-      <Card sx={{ display: "flex", mb: 2, p: 2 }}>
-        <Skeleton variant="rectangular" width={100} height={80} />
-        <Box sx={{ flex: 1, ml: 2 }}>
+      <Card sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, mb: 2, p: 2 }}>
+        <Skeleton
+          variant="rectangular"
+          width="100%"
+          height={180}
+          sx={{ maxWidth: { xs: "100%", sm: 100 }, borderRadius: 1 }}
+        />
+        <Box sx={{ flex: 1, ml: { xs: 0, sm: 2 }, mt: { xs: 2, sm: 0 } }}>
           <Skeleton width="60%" height={20} />
           <Skeleton width="90%" height={20} />
           <Skeleton width="40%" height={20} />
@@ -189,18 +257,38 @@ function MyLearnings() {
   );
 
   const renderCourse = (course, completed = false) => (
-    <Card key={course.id} sx={{ display: "flex", mb: 2, p: 2 }}>
+    <Card
+      key={course.id}
+      sx={{
+        display: "flex",
+        flexDirection: { xs: "column", sm: "row" },
+        mb: 2,
+        p: 2,
+      }}
+    >
       <CardMedia
         component="img"
-        sx={{ width: 100, borderRadius: 1 }}
+        sx={{
+          width: { xs: "100%", sm: 100 },
+          height: { xs: 180, sm: 100 },
+          borderRadius: 1,
+          objectFit: "cover",
+          alignSelf: { xs: "stretch", sm: "flex-start" },
+        }}
         image={course.img}
         alt={course.title}
       />
-      <CardContent sx={{ flex: 1 }}>
-   <Box display={"flex"} justifyContent={"space-between"}>
-      <Box>
-           <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Typography variant="h6">{course.title}</Typography>
+      <CardContent sx={{ flex: 1, px: { xs: 0, sm: 2 }, pb: "16px !important", pt: { xs: 2, sm: 0 } }}>
+   <Box display={"flex"} justifyContent={"space-between"} flexDirection={{ xs: "column", sm: "row" }} gap={2}>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+           <Box
+             display="flex"
+             alignItems={{ xs: "flex-start", sm: "center" }}
+             justifyContent="space-between"
+             flexDirection={{ xs: "column", sm: "row" }}
+             gap={1}
+           >
+          <Typography variant="h6" sx={{ wordBreak: "break-word" }}>{course.title}</Typography>
           {completed && (
             <Chip
               icon={<CheckCircleIcon style={{ color: greenColor }} />}
@@ -214,17 +302,40 @@ function MyLearnings() {
             />
           )}
         </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            mt: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+          }}
+        >
           {course.desc}
         </Typography>
      </Box>
 
-           <Box sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap" }}>
+           <Box
+             sx={{
+               mt: { xs: 0, sm: 2 },
+               display: "flex",
+               gap: 2,
+               flexWrap: "wrap",
+               width: { xs: "100%", sm: "auto" },
+               justifyContent: { xs: "stretch", sm: "flex-start" },
+             }}
+           >
           <Button
             variant="contained"
             onClick={() => router.push(`/user/my-leaning/${course.id}`)}
             sx={{
               backgroundColor: greenColor,
+              height: 40,
+              minWidth: { xs: "100%", sm: 140 },
+              mt: { xs: 0, sm: 3 },
               "&:hover": { opacity: 0.9, backgroundColor: greenColor },
             }}
           >
@@ -261,10 +372,10 @@ function MyLearnings() {
   );
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ mb: 2 }}>
+    <Box >
+      {/* <Typography variant="h5" sx={{ mb: 2 }}>
         My Learnings
-      </Typography>
+      </Typography> */}
 
       <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ mb: 3 }}>
         <Tab label="In Progress" />

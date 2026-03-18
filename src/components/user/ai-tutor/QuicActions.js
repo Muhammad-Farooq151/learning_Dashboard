@@ -86,9 +86,9 @@ function QuickActionCard({ action }) {
 function QuicActions() {
   return (
     <Box sx={{ mb: 4, flexShrink: 0 }}>
-      <Typography variant="h5" fontWeight={600} mb={3}>
+      {/* <Typography variant="h5" fontWeight={600} mb={3}>
         Quick Actions
-      </Typography>
+      </Typography> */}
       <Grid container spacing={2}>
         {quickActions.map((action) => (
           <Grid size={{ xs: 12, sm: 6 }} key={action.id}>
