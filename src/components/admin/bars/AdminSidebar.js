@@ -5,16 +5,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
   Box,
+  Collapse,
   Stack,
   Typography,
   List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Divider,
   IconButton,
 } from "@mui/material";
-import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
+import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import PowerSettingsNewOutlinedIcon from "@mui/icons-material/PowerSettingsNewOutlined";
 import { ClipLoader } from "react-spinners";
 import { greenColor } from "@/components/utils/Colors";
@@ -22,7 +23,88 @@ import Swal from "sweetalert2";
 import { clearAuthToken } from "@/utils/authStorage";
 import { ADMIN_NAV_ITEMS } from "@/components/admin/navigation/navConfig";
 
-function NavItem({ item, active, onNavigate }) {
+function NavItem({ item, active, onNavigate, pathname }) {
+  const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+  const isTreeActive = hasChildren && item.children.some((child) => pathname === child.href);
+  const [open, setOpen] = useState(isTreeActive);
+
+  useEffect(() => {
+    if (isTreeActive) {
+      setOpen(true);
+    }
+  }, [isTreeActive]);
+
+  if (hasChildren) {
+    return (
+      <Box sx={{ mb: 0.5 }}>
+        <ListItemButton
+          onClick={() => setOpen((prev) => !prev)}
+          sx={{
+            borderRadius: 2,
+            padding: "13px",
+            color: isTreeActive ? "common.white" : "text.primary",
+            bgcolor: isTreeActive ? greenColor : "transparent",
+            "& .MuiListItemIcon-root": {
+              minWidth: 36,
+              color: isTreeActive ? "common.white" : "text.secondary",
+            },
+            "&:hover": {
+              bgcolor: isTreeActive ? greenColor : "rgba(0,0,0,0.04)",
+            },
+            transition: "background-color .2s ease, color .2s ease",
+          }}
+        >
+          <ListItemIcon sx={{ height: "22px", width: "22px" }}>{item.icon}</ListItemIcon>
+          <ListItemText
+            primary={
+              <Typography variant="body2" fontSize={"14px"} fontWeight={700}>
+                {item.label}
+              </Typography>
+            }
+          />
+          {open ? (
+            <ExpandLessRoundedIcon fontSize="small" />
+          ) : (
+            <ExpandMoreRoundedIcon fontSize="small" />
+          )}
+        </ListItemButton>
+
+        <Collapse in={open} timeout="auto" unmountOnExit>
+          <List disablePadding sx={{ mt: 0.5, pl: 2 }}>
+            {item.children.map((child) => {
+              const childActive = pathname === child.href;
+              return (
+                <ListItemButton
+                  key={child.href}
+                  onClick={() => onNavigate(child.href)}
+                  sx={{
+                    borderRadius: 2,
+                    py: 1.1,
+                    px: 1.5,
+                    mb: 0.5,
+                    bgcolor: childActive ? "rgba(50, 157, 123, 0.12)" : "transparent",
+                    color: childActive ? greenColor : "text.secondary",
+                    "&:hover": {
+                      bgcolor: childActive ? "rgba(50, 157, 123, 0.16)" : "rgba(0,0,0,0.04)",
+                    },
+                  }}
+                >
+                  <ListItemText
+                    primary={
+                      <Typography variant="body2" fontSize="13px" fontWeight={childActive ? 700 : 500}>
+                        {child.label}
+                      </Typography>
+                    }
+                  />
+                </ListItemButton>
+              );
+            })}
+          </List>
+        </Collapse>
+      </Box>
+    );
+  }
+
   return (
     <ListItemButton
       onClick={() => onNavigate(item.href)}
@@ -205,43 +287,75 @@ export default function AdminSidebar() {
     <>
       <Box
         sx={{
-          // width: 240,
-          // minWidth: 240,
           height: "100dvh",
-          // borderRight: "1px solid",
           borderColor: "divider",
           position: "sticky",
           top: 0,
           bgcolor: "background.paper",
           display: "flex",
           flexDirection: "column",
-          px: 0.5,
+          overflow: "hidden",
+          px: 1,
           py: 1.5,
         }}
       >
-        {/* Brand */}
-        <Typography variant="h6" fontWeight={800} sx={{ px: 1, mb: 1, letterSpacing: 0.4 }}>
+        <Typography
+          variant="h6"
+          fontWeight={800}
+          sx={{ px: 1, mb: 1.5, letterSpacing: 0.4, flexShrink: 0 }}
+        >
           LEARNING HUB
         </Typography>
 
-        {/* <Divider sx={{ mb: 1 }} /> */}
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            overflowX: "hidden",
+            pr: 0.5,
+            mr: -0.5,
+            scrollbarWidth: "thin",
+            scrollbarColor: "#CBD5E1 transparent",
+            "&::-webkit-scrollbar": {
+              width: 6,
+            },
+            "&::-webkit-scrollbar-track": {
+              background: "transparent",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: "#CBD5E1",
+              borderRadius: 999,
+            },
+          }}
+        >
+          <List disablePadding sx={{ px: 0.5 }}>
+            {ADMIN_NAV_ITEMS.map((item) => (
+              <NavItem
+                key={item.href}
+                item={item}
+                active={activeKey === item.href}
+                onNavigate={onNavigate}
+                pathname={pathname}
+              />
+            ))}
+          </List>
+        </Box>
 
-        {/* Nav */}
-        <List disablePadding sx={{ px: 0.5 }}>
-          {ADMIN_NAV_ITEMS.map((item) => (
-            <NavItem
-              key={item.href}
-              item={item}
-              active={activeKey === item.href}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </List>
-
-        <Box sx={{ flexGrow: 1 }} />
-
-        {/* Logout */}
-        <Stack direction="row" alignItems="center" sx={{ px: 1, pb: 1, pt: 0.5 }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          sx={{
+            px: 1,
+            pb: 0.5,
+            pt: 1.5,
+            mt: 1,
+            borderTop: "1px solid",
+            borderColor: "divider",
+            flexShrink: 0,
+            bgcolor: "background.paper",
+          }}
+        >
           <IconButton
             onClick={handleLogoutRequest}
             size="small"

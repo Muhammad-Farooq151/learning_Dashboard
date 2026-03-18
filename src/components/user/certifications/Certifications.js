@@ -520,10 +520,19 @@ export default function Certifications() {
   const [rateOpen, setRateOpen] = useState(false);
   const [activeCert, setActiveCert] = useState(null);
   const [file, setFile] = useState(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [existingFeedback, setExistingFeedback] = useState(null);
   const [loadingFeedback, setLoadingFeedback] = useState(false);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (filePreviewUrl) {
+        URL.revokeObjectURL(filePreviewUrl);
+      }
+    };
+  }, [filePreviewUrl]);
 
   useEffect(() => {
     const loadCertificates = async () => {
@@ -828,6 +837,7 @@ export default function Certifications() {
     setRateOpen(true);
     setLoadingFeedback(true);
     setExistingFeedback(null);
+    clearSelectedFile();
     
     // Always check if feedback already exists for this course
     if (userId) {
@@ -849,6 +859,7 @@ export default function Certifications() {
               rememberTop: feedback.rememberTop || false,
               rememberBottom: feedback.rememberBottom || false,
             });
+            clearSelectedFile();
             setLoadingFeedback(false);
             return;
           }
@@ -868,7 +879,7 @@ export default function Certifications() {
         rememberBottom: false,
       },
     });
-    setFile(null);
+    clearSelectedFile();
     setLoadingFeedback(false);
   };
 
@@ -877,10 +888,28 @@ export default function Certifications() {
     setActiveCert(null);
     setExistingFeedback(null);
     formik.resetForm();
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
     setFile(null);
+    setFilePreviewUrl("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const onPickFile = () => fileInputRef.current?.click();
+
+  const clearSelectedFile = () => {
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
+    setFile(null);
+    setFilePreviewUrl("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const onFileChange = (e) => {
     const f = e.target.files?.[0];
@@ -906,7 +935,11 @@ export default function Certifications() {
       e.target.value = "";
       return;
     }
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
     setFile(f);
+    setFilePreviewUrl(URL.createObjectURL(f));
   };
 
   if (loading) {
@@ -1202,42 +1235,103 @@ export default function Certifications() {
           {/* Upload card */}
           <Paper
             variant="outlined"
-            onClick={!existingFeedback ? onPickFile : undefined}
+            onClick={!existingFeedback && !filePreviewUrl ? onPickFile : undefined}
             sx={{
               borderRadius: 2,
               borderColor: palette.gray300,
               bgcolor: palette.gray50,
-              height: 120,
+              minHeight: 120,
               display: "grid",
               placeItems: "center",
-              cursor: existingFeedback ? "default" : "pointer",
+              cursor: existingFeedback || filePreviewUrl ? "default" : "pointer",
               mb: 2,
-              opacity: existingFeedback ? 0.6 : 1,
-              ":hover": existingFeedback ? {} : { bgcolor: "#F6F7F9" },
+              opacity: existingFeedback ? 0.8 : 1,
+              overflow: "hidden",
+              ":hover": existingFeedback || filePreviewUrl ? {} : { bgcolor: "#F6F7F9" },
             }}
           >
-            <Stack alignItems="center" spacing={0.5}>
-              <CloudUploadOutlinedIcon sx={{ color: palette.gray600 }} />
-              <Typography sx={{ color: palette.gray600, fontWeight: 600, fontSize: 13 }}>
-                Click here to Upload
-              </Typography>
-              <Typography sx={{ color: palette.gray700, fontSize: 11, lineHeight: 1 }}>
-                Accept format: JPEG, JPG, PNG
-              </Typography>
-              <Typography sx={{ color: palette.gray700, fontSize: 11, lineHeight: 1 }}>
-                Maximum size: 2MB
-              </Typography>
-              {file && (
-                <Typography sx={{ color: palette.green, fontSize: 12, mt: 0.5 }}>
-                  Selected: {file.name}
+            {filePreviewUrl ? (
+              <Box sx={{ width: "100%", p: 1.5 }}>
+                <Box
+                  sx={{
+                    position: "relative",
+                    width: "100%",
+                    height: 180,
+                    borderRadius: 1.5,
+                    overflow: "hidden",
+                    border: `1px solid ${palette.gray300}`,
+                    bgcolor: "white",
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={filePreviewUrl}
+                    alt="Selected review upload preview"
+                    sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                </Box>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.25 }}>
+                  <Typography sx={{ color: palette.green, fontSize: 12, fontWeight: 600 }}>
+                    Selected: {file.name}
+                  </Typography>
+                  <Button
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearSelectedFile();
+                    }}
+                    sx={{ textTransform: "none", minWidth: 0, p: 0, color: palette.red, fontWeight: 600 }}
+                  >
+                    Cancel Image
+                  </Button>
+                </Stack>
+              </Box>
+            ) : existingFeedback?.fileUrl ? (
+              <Box sx={{ width: "100%", p: 1.5 }}>
+                <Box
+                  sx={{
+                    width: "100%",
+                    height: 180,
+                    borderRadius: 1.5,
+                    overflow: "hidden",
+                    border: `1px solid ${palette.gray300}`,
+                    bgcolor: "white",
+                    mb: 1.25,
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={existingFeedback.fileUrl}
+                    alt="Uploaded review"
+                    sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                </Box>
+                <Typography sx={{ color: palette.green, fontSize: 12 }}>
+                  Uploaded:{" "}
+                  <a
+                    href={existingFeedback.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: palette.green, textDecoration: "underline" }}
+                  >
+                    View Image
+                  </a>
                 </Typography>
-              )}
-              {existingFeedback?.fileUrl && (
-                <Typography sx={{ color: palette.green, fontSize: 12, mt: 0.5 }}>
-                  Uploaded: <a href={existingFeedback.fileUrl} target="_blank" rel="noopener noreferrer" style={{ color: palette.green, textDecoration: "underline" }}>View Image</a>
+              </Box>
+            ) : (
+              <Stack alignItems="center" spacing={0.5}>
+                <CloudUploadOutlinedIcon sx={{ color: palette.gray600 }} />
+                <Typography sx={{ color: palette.gray600, fontWeight: 600, fontSize: 13 }}>
+                  Click here to Upload
                 </Typography>
-              )}
-            </Stack>
+                <Typography sx={{ color: palette.gray700, fontSize: 11, lineHeight: 1 }}>
+                  Accept format: JPEG, JPG, PNG
+                </Typography>
+                <Typography sx={{ color: palette.gray700, fontSize: 11, lineHeight: 1 }}>
+                  Maximum size: 2MB
+                </Typography>
+              </Stack>
+            )}
             <input ref={fileInputRef} type="file" hidden onChange={onFileChange} disabled={!!existingFeedback} />
           </Paper>
 

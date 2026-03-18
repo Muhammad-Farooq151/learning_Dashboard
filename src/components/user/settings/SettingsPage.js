@@ -36,8 +36,10 @@ import "react-phone-number-input/style.css";
 import "./settings-phone-input.css";
 import { useFormik } from "formik";
 import * as Yup from "yup";
+import Swal from "sweetalert2";
+import { useRouter } from "next/navigation";
 import { postJSON, putJSON } from "@/utils/http";
-import { getStoredUser, updateStoredUser } from "@/utils/authStorage";
+import { clearAuthToken, getStoredUser, updateStoredUser } from "@/utils/authStorage";
 import { ClipLoader } from "react-spinners";
 import { toast } from "react-hot-toast";
 
@@ -67,6 +69,39 @@ const toggleSettings = [
     defaultChecked: true,
   },
 ];
+
+const defaultNotificationState = () =>
+  toggleSettings.reduce((acc, curr) => {
+    acc[curr.id] = curr.defaultChecked;
+    return acc;
+  }, {});
+
+const notificationPreferenceMap = {
+  "course-updates": "courseUpdates",
+  promotions: "promotionsOffers",
+  "refund-status": "refundStatus",
+  "recommended-courses": "recommendedCourses",
+};
+
+const preferencesToSwitchState = (preferences = {}) => ({
+  "course-updates":
+    typeof preferences.courseUpdates === "boolean" ? preferences.courseUpdates : true,
+  promotions:
+    typeof preferences.promotionsOffers === "boolean" ? preferences.promotionsOffers : true,
+  "refund-status":
+    typeof preferences.refundStatus === "boolean" ? preferences.refundStatus : false,
+  "recommended-courses":
+    typeof preferences.recommendedCourses === "boolean"
+      ? preferences.recommendedCourses
+      : true,
+});
+
+const switchStateToPreferences = (switches = {}) => ({
+  courseUpdates: Boolean(switches["course-updates"]),
+  promotionsOffers: Boolean(switches.promotions),
+  refundStatus: Boolean(switches["refund-status"]),
+  recommendedCourses: Boolean(switches["recommended-courses"]),
+});
 
 const inputStyles = {
   "& .MuiOutlinedInput-root": {
@@ -190,6 +225,7 @@ const createPasswordSchema = Yup.object({
 });
 
 function SettingsPage() {
+  const router = useRouter();
   const [profileForm, setProfileForm] = useState({
     fullName: "",
     email: "",
@@ -201,6 +237,8 @@ function SettingsPage() {
   const [profileError, setProfileError] = useState("");
   const [profileSubmitting, setProfileSubmitting] = useState(false);
   const [profileConfirmOpen, setProfileConfirmOpen] = useState(false);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const [notificationSavingId, setNotificationSavingId] = useState("");
   const [showPassword, setShowPassword] = useState({
     old: false,
     new: false,
@@ -210,23 +248,77 @@ function SettingsPage() {
     password: false,
     confirmPassword: false,
   });
-  const [notifications, setNotifications] = useState(
-    toggleSettings.reduce((acc, curr) => {
-      acc[curr.id] = curr.defaultChecked;
-      return acc;
-    }, {})
-  );
+  const [notifications, setNotifications] = useState(defaultNotificationState);
 
-  const handleToggleChange = (id) => {
-    setNotifications((prev) => ({ ...prev, [id]: !prev[id] }));
+  const handleToggleChange = async (id) => {
+    const storedUser = getStoredUser();
+    if (!storedUser?.id) {
+      toast.error("Session expired. Please log in again.");
+      return;
+    }
+
+    const nextNotifications = {
+      ...notifications,
+      [id]: !notifications[id],
+    };
+
+    setNotifications(nextNotifications);
+    setNotificationSavingId(id);
+
+    try {
+      await putJSON("users/notification-preferences", {
+        userId: storedUser.id,
+        emailPreferences: switchStateToPreferences(nextNotifications),
+      });
+    } catch (error) {
+      setNotifications(notifications);
+      toast.error(error.message || "Failed to update notification preferences.");
+    } finally {
+      setNotificationSavingId("");
+    }
   };
 
   const formik = useFormik({
     initialValues: { oldPassword: "", newPassword: "", confirmPassword: "" },
     validationSchema: passwordSchema,
     onSubmit: async (values, helpers) => {
-      toast.success("Password updated successfully.");
-      helpers.resetForm();
+      const storedUser = getStoredUser();
+
+      if (!storedUser?.id) {
+        toast.error("Session expired. Please log in again.");
+        return;
+      }
+
+      setPasswordSubmitting(true);
+      try {
+        await putJSON("users/password", {
+          userId: storedUser.id,
+          oldPassword: values.oldPassword,
+          newPassword: values.newPassword,
+        });
+        helpers.resetForm();
+        await Swal.fire({
+          icon: "success",
+          title: "Password Changed",
+          text: "Your password has been changed. Please log in again.",
+          confirmButtonColor: "#16A249",
+          confirmButtonText: "OK",
+        });
+        clearAuthToken();
+        router.replace("/");
+      } catch (error) {
+        if ((error.message || "").toLowerCase().includes("current password")) {
+          helpers.setFieldError("oldPassword", error.message);
+          helpers.setFieldTouched("oldPassword", true, false);
+        } else if ((error.message || "").toLowerCase().includes("differ from current")) {
+          helpers.setFieldError("newPassword", error.message);
+          helpers.setFieldTouched("newPassword", true, false);
+        } else {
+          toast.error(error.message || "Failed to update password.");
+        }
+      } finally {
+        setPasswordSubmitting(false);
+      }
     },
   });
 
@@ -354,6 +446,7 @@ function SettingsPage() {
         setProfileForm(snapshot);
         setProfileSnapshot(snapshot);
         setProfileMeta({ createdAt: profile.createdAt || null });
+        setNotifications(preferencesToSwitchState(profile.emailPreferences));
         updateStoredUser({
           id: profile.id || storedUser.id,
           fullName: profile.fullName,
@@ -657,19 +750,32 @@ function SettingsPage() {
             </Box>
 
               <Stack direction="row" justifyContent="flex-end" spacing={2} mt={3}>
-                <Button variant="outlined" sx={{ textTransform: "none" }}>
+                <Button
+                  variant="outlined"
+                  sx={{ textTransform: "none" }}
+                  onClick={formik.handleReset}
+                  disabled={passwordSubmitting}
+                >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   variant="contained"
+                  disabled={passwordSubmitting}
                   sx={{
                     textTransform: "none",
                     bgcolor: "#16A249",
                     ":hover": { bgcolor: "#13873C" },
                   }}
                 >
-                  Update Password
+                  {passwordSubmitting ? (
+                    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+                      <ClipLoader size={18} color="#fff" />
+                      Updating...
+                    </Box>
+                  ) : (
+                    "Update Password"
+                  )}
                 </Button>
               </Stack>
             </Box>
@@ -791,6 +897,7 @@ function SettingsPage() {
                     <IOSSwitch
                       checked={notifications[item.id]}
                       onChange={() => handleToggleChange(item.id)}
+                      disabled={notificationSavingId === item.id}
                     />
                   </Stack>
                 </Grid>

@@ -7,13 +7,26 @@ import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 
+export const ADMIN_EMAIL_NAV_ITEMS = [
+  { label: "Emails", href: "/admin/emails" },
+  { label: "Course Updates", href: "/admin/emails/course-updates" },
+  { label: "Promotions & Offers", href: "/admin/emails/promotions-offers" },
+  { label: "Refund Status", href: "/admin/emails/refund-status" },
+  { label: "Recommended Courses", href: "/admin/emails/recommended-courses" },
+];
+
 export const ADMIN_NAV_ITEMS = [
   { label: "Dashboard", href: "/admin/dashboard", icon: <DashboardRoundedIcon /> },
   { label: "Courses", href: "/admin/courses", icon: <MenuBookOutlinedIcon /> },
   { label: "Users", href: "/admin/users", icon: <SupervisedUserCircle /> },
   { label: "Tutors", href: "/admin/tutors", icon: <SchoolOutlinedIcon /> },
   { label: "Admins", href: "/admin/admins", icon: <AdminPanelSettingsOutlinedIcon /> },
-  { label: "Emails", href: "/admin/emails", icon: <EmailOutlinedIcon /> },
+  {
+    label: "Emails",
+    href: "/admin/emails",
+    icon: <EmailOutlinedIcon />,
+    children: ADMIN_EMAIL_NAV_ITEMS,
+  },
   { label: "Refunds", href: "/admin/refunds", icon: <WorkspacePremiumOutlinedIcon /> },
   { label: "Settings", href: "/admin/settings", icon: <SettingsOutlinedIcon /> },
 ];
@@ -31,6 +44,10 @@ const ADMIN_ROUTE_META = [
   { match: (pathname) => pathname.startsWith("/admin/admins/new"), title: "New Admin" },
   { match: (pathname) => pathname.startsWith("/admin/admins/edit/"), title: "Edit Admin" },
   { match: (pathname) => pathname === "/admin/emails", title: "Emails" },
+  { match: (pathname) => pathname === "/admin/emails/course-updates", title: "Course Updates" },
+  { match: (pathname) => pathname === "/admin/emails/promotions-offers", title: "Promotions & Offers" },
+  { match: (pathname) => pathname === "/admin/emails/refund-status", title: "Refund Status" },
+  { match: (pathname) => pathname === "/admin/emails/recommended-courses", title: "Recommended Courses" },
   { match: (pathname) => pathname === "/admin/refunds", title: "Refunds" },
   { match: (pathname) => pathname === "/admin/settings", title: "Settings" },
 ];
