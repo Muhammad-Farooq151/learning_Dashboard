@@ -75,7 +75,7 @@ export default function VerifyEmailStatus() {
       }
     }
     verify();
-  }, [email, token]);
+  }, [email, token, router]);
 
   const isSuccess = status === STATUS.SUCCESS;
   const isLoading = status === STATUS.LOADING;

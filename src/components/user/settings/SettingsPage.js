@@ -809,7 +809,7 @@ function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card
+        {/* <Card
           sx={{
             borderRadius: 4,
             boxShadow: "0px 12px 30px rgba(15, 23, 42, 0.06)",
@@ -889,7 +889,7 @@ function SettingsPage() {
               </Stack>
             </Box>
           </CardContent>
-        </Card>
+        </Card> */}
 
         <Card
           sx={{

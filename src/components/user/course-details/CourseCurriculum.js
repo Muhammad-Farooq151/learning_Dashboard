@@ -21,7 +21,7 @@ function formatDuration(totalSeconds = 0) {
 }
 
 function CourseCurriculum({ course }) {
-  const lessons = course?.lessons ?? [];
+  const lessons = useMemo(() => course?.lessons ?? [], [course?.lessons]);
 
   const { totalLessons, totalDurationSeconds } = useMemo(() => {
     const total = lessons.length;

@@ -55,7 +55,7 @@ function AITutor() {
     if (hasChatStarted) {
       scrollToBottom();
     }
-  }, [messages]);
+  }, [hasChatStarted, messages]);
 
   const handleSendMessage = () => {
     if (message.trim()) {
