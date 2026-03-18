@@ -2,6 +2,8 @@ import AutoStoriesRoundedIcon from "@mui/icons-material/AutoStoriesRounded";
 import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
 import WorkspacePremiumRoundedIcon from "@mui/icons-material/WorkspacePremiumRounded";
 import NotificationsActiveRoundedIcon from "@mui/icons-material/NotificationsActiveRounded";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
+import RecommendRoundedIcon from "@mui/icons-material/RecommendRounded";
 
 export const FRONTEND_EMAIL_TEMPLATES = [
   {
@@ -64,6 +66,36 @@ export const FRONTEND_EMAIL_TEMPLATES = [
     ctaUrl: "{{courseUrl}}",
     iconKey: "certificate",
   },
+  {
+    id: "frontend-refund-status",
+    source: "frontend",
+    type: "refund-status",
+    name: "Refund Status Update",
+    category: "Refunds",
+    description: "Keep learners informed about their refund request progress.",
+    subject: "Refund status update for {{name}}",
+    heading: "Your refund request has a new update",
+    body:
+      "Hello {{name}},\n\nThere is an update regarding your refund request on Learning Hub.\n\nPlease review the latest status and any next steps directly from your account.",
+    ctaText: "Open Refund Details",
+    ctaUrl: "{{courseUrl}}",
+    iconKey: "refund",
+  },
+  {
+    id: "frontend-recommended-courses",
+    source: "frontend",
+    type: "recommended-courses",
+    name: "Recommended Courses",
+    category: "Recommendations",
+    description: "Share personalized course suggestions with engaged learners.",
+    subject: "Recommended courses for {{name}}",
+    heading: "Fresh course picks you may like",
+    body:
+      "Hello {{name}},\n\nBased on your learning activity, we selected a few recommended courses that may help you keep growing your skills on Learning Hub.\n\nOpen the platform and explore what fits your goals best.",
+    ctaText: "Explore Recommendations",
+    ctaUrl: "{{courseUrl}}",
+    iconKey: "recommended",
+  },
 ];
 
 export const TEMPLATE_ICON_MAP = {
@@ -71,5 +103,7 @@ export const TEMPLATE_ICON_MAP = {
   course: NotificationsActiveRoundedIcon,
   promotion: CampaignRoundedIcon,
   certificate: WorkspacePremiumRoundedIcon,
+  refund: ReceiptLongRoundedIcon,
+  recommended: RecommendRoundedIcon,
   custom: AutoStoriesRoundedIcon,
 };

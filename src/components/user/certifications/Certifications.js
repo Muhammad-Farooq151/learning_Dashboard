@@ -331,16 +331,11 @@ function CertificatePreview({ course, userName, onClose, onDownload, userId }) {
           ref={certificateRef}
           sx={{
             width: "100%",
-            minHeight: "400px",
-            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            minHeight: "430px",
+            background:
+              "linear-gradient(135deg, #f8fffc 0%, #effaf6 52%, #f7fbff 100%)",
             borderRadius: 3,
-            p: 4,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "white",
-            textAlign: "center",
+            p: { xs: 1.5, sm: 2 },
             position: "relative",
             overflow: "hidden",
             "&::before": {
@@ -350,121 +345,265 @@ function CertificatePreview({ course, userName, onClose, onDownload, userId }) {
               left: 0,
               right: 0,
               bottom: 0,
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='a' patternUnits='userSpaceOnUse' width='100' height='100' patternTransform='scale(0.5) rotate(0)'%3E%3Crect x='0' y='0' width='100%25' height='100%25' fill='hsla(0,0%25,100%25,0)'/%3E%3Cpath d='M50 50h50v50H50z' stroke='hsla(0,0%25,100%25,0.1)' stroke-width='1' fill='none'/%3E%3C/pattern%3E%3C/defs%3E%3Crect fill='url(%23a)' width='100%25' height='100%25'/%3E%3C/svg%3E")`,
-              opacity: 0.3,
+              background:
+                "radial-gradient(circle at top right, rgba(55,192,135,0.18), transparent 28%), radial-gradient(circle at bottom left, rgba(10,102,194,0.08), transparent 30%)",
             },
           }}
         >
-          {/* Decorative border */}
           <Box
             sx={{
-              position: "absolute",
-              top: 20,
-              left: 20,
-              right: 20,
-              bottom: 20,
-              border: "3px solid rgba(255, 255, 255, 0.3)",
-              borderRadius: 2,
+              position: "relative",
+              zIndex: 1,
+              minHeight: "395px",
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "210px 1fr" },
+              borderRadius: 3,
+              overflow: "hidden",
+              bgcolor: "#FFFFFF",
+              border: `1px solid ${palette.greenBorder}`,
+              boxShadow: "0 18px 45px rgba(17, 24, 39, 0.08)",
             }}
-          />
-
-          {/* Certificate Content */}
-          <Box sx={{ position: "relative", zIndex: 1, maxWidth: "90%" }}>
-            <Typography
-              variant="h4"
+          >
+            <Box
               sx={{
-                fontWeight: 700,
-                mb: 3,
-                fontSize: { xs: "24px", sm: "32px" },
-                textShadow: "2px 2px 4px rgba(0,0,0,0.2)",
+                background:
+                  "linear-gradient(180deg, #0f3f33 0%, #13624c 55%, #1b8b68 100%)",
+                color: "white",
+                px: { xs: 2.5, md: 2.25 },
+                py: { xs: 2.5, md: 3 },
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                position: "relative",
+                overflow: "hidden",
               }}
             >
-              Certificate of Completion
-            </Typography>
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  opacity: 0.18,
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%), radial-gradient(circle at bottom left, rgba(255,255,255,0.32), transparent 30%)",
+                }}
+              />
 
-            <Typography
-              variant="body1"
-              sx={{
-                mb: 4,
-                fontSize: { xs: "14px", sm: "16px" },
-                opacity: 0.9,
-              }}
-            >
-              This is to certify that
-            </Typography>
-
-            <Typography
-              variant="h3"
-              sx={{
-                fontWeight: 700,
-                mb: 4,
-                fontSize: { xs: "28px", sm: "36px" },
-                textShadow: "2px 2px 4px rgba(0,0,0,0.2)",
-                borderBottom: "2px solid rgba(255, 255, 255, 0.5)",
-                pb: 2,
-                display: "inline-block",
-              }}
-            >
-              {userName || "Student Name"}
-            </Typography>
-
-            <Typography
-              variant="body1"
-              sx={{
-                mb: 2,
-                fontSize: { xs: "14px", sm: "16px" },
-                opacity: 0.9,
-              }}
-            >
-              has successfully completed the course
-            </Typography>
-
-            <Typography
-              variant="h5"
-              sx={{
-                fontWeight: 600,
-                mb: 4,
-                fontSize: { xs: "18px", sm: "24px" },
-                textShadow: "1px 1px 2px rgba(0,0,0,0.2)",
-              }}
-            >
-              {course.title}
-            </Typography>
-
-            <Typography
-              variant="body2"
-              sx={{
-                fontSize: { xs: "12px", sm: "14px" },
-                opacity: 0.8,
-                mt: 3,
-              }}
-            >
-              Issued on {formatDate(new Date())}
-            </Typography>
-
-            {/* Seal/Signature area */}
-            <Box sx={{ mt: 4, display: "flex", justifyContent: "space-between", width: "100%" }}>
-              <Box sx={{ textAlign: "center", flex: 1 }}>
-                <Box
+              <Box sx={{ position: "relative", zIndex: 1 }}>
+                <Typography
                   sx={{
-                    width: 80,
-                    height: 80,
-                    borderRadius: "50%",
-                    border: "2px solid rgba(255, 255, 255, 0.5)",
-                    mx: "auto",
-                    mb: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "32px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: "0.3em",
+                    textTransform: "uppercase",
+                    opacity: 0.78,
+                    mb: 1.5,
                   }}
                 >
-                  ✓
-                </Box>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  Verified
+                  Learning Hub
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: { xs: 26, md: 32 },
+                    lineHeight: 1,
+                    fontWeight: 800,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    maxWidth: 120,
+                  }}
+                >
+                  Learning
+                  <br />
+                  Hub
+                </Typography>
+                <Typography sx={{ mt: 2, fontSize: 13, lineHeight: 1.7, opacity: 0.88 }}>
+                  Verified learning achievements with professional completion certification.
                 </Typography>
               </Box>
+
+              <Stack sx={{ position: "relative", zIndex: 1 }} spacing={1.25}>
+                <Box
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 1,
+                    px: 1.25,
+                    py: 0.85,
+                    borderRadius: 999,
+                    bgcolor: "rgba(255,255,255,0.12)",
+                    border: "1px solid rgba(255,255,255,0.22)",
+                    width: "fit-content",
+                  }}
+                >
+                  <VerifiedRoundedIcon sx={{ fontSize: 18 }} />
+                  <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>
+                    Verified Completion
+                  </Typography>
+                </Box>
+                <Typography sx={{ fontSize: 12.5, opacity: 0.82 }}>
+                  Issued {formatDate(new Date())}
+                </Typography>
+              </Stack>
+            </Box>
+
+            <Box
+              sx={{
+                px: { xs: 2.5, md: 4.5 },
+                py: { xs: 3, md: 4 },
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                textAlign: "center",
+                position: "relative",
+              }}
+            >
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: 18,
+                  right: 18,
+                  width: 92,
+                  height: 92,
+                  borderRadius: "50%",
+                  border: "2px solid rgba(55, 192, 135, 0.18)",
+                  display: { xs: "none", md: "flex" },
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: palette.green,
+                  bgcolor: "rgba(55, 192, 135, 0.05)",
+                }}
+              >
+                <VerifiedRoundedIcon sx={{ fontSize: 42 }} />
+              </Box>
+
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: "0.28em",
+                    color: palette.green,
+                    textTransform: "uppercase",
+                    mb: 1.25,
+                  }}
+                >
+                  Official Certificate
+                </Typography>
+                <Typography
+                  variant="h3"
+                  sx={{
+                    fontWeight: 800,
+                    color: palette.gray900,
+                    fontSize: { xs: "28px", md: "40px" },
+                    lineHeight: 1.1,
+                    mb: 2,
+                  }}
+                >
+                  Certificate of Completion
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: { xs: 14, md: 15.5 },
+                    color: palette.gray700,
+                    mb: 3,
+                  }}
+                >
+                  This certificate is proudly presented to
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontSize: { xs: "30px", md: "42px" },
+                    fontWeight: 800,
+                    color: palette.gray900,
+                    lineHeight: 1.15,
+                    mb: 1.5,
+                    fontFamily: '"Georgia", "Times New Roman", serif',
+                  }}
+                >
+                  {userName || "Student Name"}
+                </Typography>
+
+                <Box
+                  sx={{
+                    width: "100%",
+                    maxWidth: 340,
+                    mx: "auto",
+                    borderBottom: `2px solid ${palette.greenBorder}`,
+                    mb: 3,
+                  }}
+                />
+
+                <Typography
+                  sx={{
+                    fontSize: { xs: 14, md: 15.5 },
+                    color: palette.gray700,
+                    mb: 1.75,
+                  }}
+                >
+                  for successfully completing the course
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontSize: { xs: "20px", md: "28px" },
+                    fontWeight: 700,
+                    color: palette.green,
+                    lineHeight: 1.35,
+                    maxWidth: 560,
+                    mx: "auto",
+                  }}
+                >
+                  {course.title}
+                </Typography>
+              </Box>
+
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                justifyContent="space-between"
+                alignItems={{ xs: "center", md: "flex-end" }}
+                spacing={2}
+                sx={{ mt: 4.5 }}
+              >
+                <Box sx={{ textAlign: "center" }}>
+                  <Typography sx={{ fontSize: 12, color: palette.gray600, mb: 0.75 }}>
+                    Authorized by
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: 20,
+                      fontWeight: 700,
+                      color: palette.gray900,
+                      fontFamily: '"Georgia", "Times New Roman", serif',
+                    }}
+                  >
+                    Learning Hub
+                  </Typography>
+                  <Box
+                    sx={{
+                      mt: 1,
+                      width: 150,
+                      borderBottom: `1px solid ${palette.gray300}`,
+                    }}
+                  />
+                </Box>
+
+                <Box
+                  sx={{
+                    px: 1.5,
+                    py: 1,
+                    borderRadius: 2,
+                    bgcolor: palette.greenSoft,
+                    border: `1px solid ${palette.greenBorder}`,
+                  }}
+                >
+                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: palette.green }}>
+                    CERT ID
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, color: palette.gray900, fontWeight: 600 }}>
+                    LH-{String(course.id || course._id || "CERT").slice(-6).toUpperCase()}
+                  </Typography>
+                </Box>
+              </Stack>
             </Box>
           </Box>
         </Box>
@@ -1197,7 +1336,7 @@ export default function Certifications() {
 
         <DialogContent sx={{ pt: 1.5 }}>
           {existingFeedback && (
-            <Alert severity="info" sx={{ mb: 2, borderRadius: 1.5 }}>
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 1.5 ,mt:2}}>
               You have already submitted feedback for this course.
             </Alert>
           )}
