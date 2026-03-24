@@ -89,7 +89,9 @@ function UsersManagement() {
         if (!isMounted) return;
 
         if (response && response.success && Array.isArray(response.data)) {
-          const mapped = response.data.map((u) => ({
+          const mapped = response.data
+            .filter((u) => String(u.role || "").toLowerCase() === "user")
+            .map((u) => ({
             id: u._id,
             name: u.fullName || "Unnamed",
             email: u.email || "",

@@ -21,7 +21,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import PowerSettingsNewOutlinedIcon from "@mui/icons-material/PowerSettingsNewOutlined";
 import { usePathname, useRouter } from "next/navigation";
-import { toast } from "react-hot-toast";
+import Swal from "sweetalert2";
 import { clearAuthToken } from "@/utils/authStorage";
 import { greenColor, grayColor } from "@/utils/Colors";
 import { getUserRouteMeta, USER_NAV_ITEMS } from "@/components/user/navigation/navConfig";
@@ -102,17 +102,48 @@ function Navbar() {
   );
 
   const handleLogout = useCallback(async () => {
+    const result = await Swal.fire({
+      title: "Confirm Logout",
+      text: "Are you sure you want to logout? You need to login again. This will clear your saved session from this device.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#6c757d",
+      confirmButtonText: "Yes, Logout",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+      scrollbarPadding: false,
+    });
+
+    if (!result.isConfirmed) {
+      return;
+    }
+
     setNavLoading(true);
     setDrawerOpen(false);
 
     try {
       clearAuthToken();
       await new Promise((resolve) => setTimeout(resolve, 600));
-      toast.success("Logged out successfully");
+      await Swal.fire({
+        icon: "success",
+        title: "Logged Out!",
+        text: "You have been successfully logged out.",
+        confirmButtonColor: greenColor,
+        confirmButtonText: "OK",
+        scrollbarPadding: false,
+      });
       router.push("/");
     } catch (error) {
       setNavLoading(false);
-      toast.error("Failed to logout. Please try again.");
+      Swal.fire({
+        icon: "error",
+        title: "Logout Failed",
+        text: "Failed to logout. Please try again.",
+        confirmButtonColor: "#d33",
+        confirmButtonText: "OK",
+        scrollbarPadding: false,
+      });
     }
   }, [router]);
 
@@ -209,8 +240,19 @@ function Navbar() {
             py: 1.2,
             color: "#b42318",
             fontWeight: 700,
+            transition: "all .28s cubic-bezier(0.22, 1, 0.36, 1)",
+            "& .MuiButton-startIcon": {
+              transition: "transform .28s cubic-bezier(0.22, 1, 0.36, 1), color .28s ease",
+            },
             "&:hover": {
-              bgcolor: "rgba(180, 35, 24, 0.06)",
+              bgcolor: "rgba(180, 35, 24, 0.1)",
+              color: "#8f1d14",
+              transform: "translateX(4px) scale(1.015)",
+              boxShadow: "0 14px 30px rgba(180, 35, 24, 0.12)",
+            },
+            "&:hover .MuiButton-startIcon": {
+              transform: "rotate(-10deg) scale(1.12)",
+              color: "#8f1d14",
             },
           }}
         >
