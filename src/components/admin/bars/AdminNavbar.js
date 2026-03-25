@@ -32,6 +32,37 @@ import {
   getAdminRouteTitle,
 } from "@/components/admin/navigation/navConfig";
 
+function AdminNavIcon({ src, active }) {
+  return (
+    <Box
+      sx={{
+        width: 22,
+        height: 22,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Box
+        sx={{
+          width: "22px",
+          height: "22px",
+          display: "block",
+          bgcolor: active ? "#FFFFFF" : "#000000",
+          WebkitMaskImage: `url(${src})`,
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          WebkitMaskSize: "contain",
+          maskImage: `url(${src})`,
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+          maskSize: "contain",
+        }}
+      />
+    </Box>
+  );
+}
+
 function MobileNavItem({ item, active, onNavigate, pathname }) {
   const hasChildren = Array.isArray(item.children) && item.children.length > 0;
   const isTreeActive = hasChildren && item.children.some((child) => pathname === child.href);
@@ -63,7 +94,9 @@ function MobileNavItem({ item, active, onNavigate, pathname }) {
             },
           }}
         >
-          <ListItemIcon>{item.icon}</ListItemIcon>
+          <ListItemIcon>
+            <AdminNavIcon src={item.iconPath} active={isTreeActive} />
+          </ListItemIcon>
           <ListItemText
             primary={
               <Typography fontSize="0.95rem" fontWeight={700}>
@@ -129,7 +162,9 @@ function MobileNavItem({ item, active, onNavigate, pathname }) {
         },
       }}
     >
-      <ListItemIcon>{item.icon}</ListItemIcon>
+      <ListItemIcon>
+        <AdminNavIcon src={item.iconPath} active={active} />
+      </ListItemIcon>
       <ListItemText
         primary={
           <Typography fontSize="0.95rem" fontWeight={active ? 700 : 500}>
