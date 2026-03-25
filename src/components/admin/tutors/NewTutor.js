@@ -47,9 +47,7 @@ const tutorValidationSchema = Yup.object().shape({
   phoneNumber: Yup.string()
     .trim()
     .required("Phone number is required"),
-  courses: Yup.array()
-    .min(1, "At least one course is required")
-    .of(Yup.string().trim().required("Course cannot be empty")),
+  courses: Yup.array().of(Yup.string().trim().required("Course cannot be empty")),
 });
 
 function NewTutor({ tutorId = null }) {
@@ -369,7 +367,7 @@ function NewTutor({ tutorId = null }) {
               {/* Courses */}
               <Box>
                 <Typography variant="body2" fontWeight={500} mb={1}>
-                  Courses * (Select one or multiple)
+                  Courses (Optional)
                 </Typography>
                 <FormControl fullWidth error={Boolean(errors.courses)}>
                   <Select
