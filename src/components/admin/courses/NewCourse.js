@@ -1335,12 +1335,12 @@ function NewCourse({ courseId = null }) {
 
                 <Grid size={{ xs: 12, md: 4 }}>
                   <Typography variant="body2" fontWeight={500} mb={1}>
-                    Original Price *
+                    Original Price ($) * 
                   </Typography>
                   <TextField
                     fullWidth
                     type="text"
-                    placeholder="eg: 800 or 800.50"
+                    placeholder="e,g:$80"
                     value={courseData.price}
                     onChange={(e) => {
                       // Only allow numbers and decimal point
@@ -1374,7 +1374,7 @@ function NewCourse({ courseId = null }) {
                   <TextField
                     fullWidth
                     type="text"
-                    placeholder="eg: 20 (max 100%)"
+                    placeholder="eg: 20% (max 100%)"
                     value={courseData.discountPercentage}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -1410,7 +1410,7 @@ function NewCourse({ courseId = null }) {
                   <TextField
                     fullWidth
                     type="text"
-                    placeholder="eg: 8 (min 0%, max 70%)"
+                    placeholder="eg: 8% (min 0%, max 70%)"
                     value={courseData.taxPercentage}
                     onChange={(e) => {
                       const value = e.target.value;

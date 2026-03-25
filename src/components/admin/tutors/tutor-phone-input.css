@@ -16,10 +16,15 @@
   margin-right: 12px;
   display: flex;
   align-items: center;
+  position: relative;
+  cursor: pointer;
 }
 
 .tutor-phone-input .PhoneInputCountrySelect {
-  display: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .tutor-phone-input .PhoneInputCountryIcon {
