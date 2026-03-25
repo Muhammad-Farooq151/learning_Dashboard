@@ -21,7 +21,7 @@ import {
 } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import { greenColor } from "@/utils/Colors";
+import { greenColor, borderColor } from "@/utils/Colors";
 import Swal from "sweetalert2";
 import { postJSON, putJSON, getJSON } from "@/utils/http";
 import * as Yup from "yup";
@@ -249,12 +249,12 @@ function NewTutor({ tutorId = null }) {
           <IconButton onClick={() => router.push("/admin/tutors")}>
             <ArrowBackRoundedIcon />
           </IconButton>
-          <Typography variant="h4" fontWeight={700}>
+          <Typography variant="h4" fontWeight={600}>
             {isEditMode ? "Edit Tutor" : "Add New Tutor"}
           </Typography>
         </Stack>
 
-        <Card>
+        <Box sx={{ border: `1px solid ${borderColor}`, borderRadius: 2, p: 3 }}>
           <CardContent>
             <Stack spacing={3}>
               <Grid container spacing={2}>
@@ -326,14 +326,22 @@ function NewTutor({ tutorId = null }) {
                   </Typography>
                   <Box
                     sx={{
-                      border: errors.phoneNumber ? "1px solid #d32f2f" : "1px solid #e0e0e0",
+                      border: "1px solid",
+                      borderColor: errors.phoneNumber ? "error.main" : "rgba(0, 0, 0, 0.23)",
                       borderRadius: 2,
+                      minHeight: 56,
+                      display: "flex",
+                      alignItems: "center",
+                      px: 1.75,
+                      transition: "border-color 0.2s ease, box-shadow 0.2s ease",
                       "&:hover": {
-                        borderColor: errors.phoneNumber ? "#d32f2f" : greenColor,
+                        borderColor: errors.phoneNumber ? "error.main" : "text.primary",
                       },
                       "&:focus-within": {
-                        borderColor: greenColor,
-                        borderWidth: "2px",
+                        borderColor: errors.phoneNumber ? "error.main" : "primary.main",
+                        boxShadow: errors.phoneNumber
+                          ? "0 0 0 1px rgba(211, 47, 47, 0.2)"
+                          : "0 0 0 1px rgba(25, 118, 210, 0.2)",
                       },
                     }}
                   >
@@ -458,7 +466,7 @@ function NewTutor({ tutorId = null }) {
               </Stack>
             </Stack>
           </CardContent>
-        </Card>
+        </Box>
       </Stack>
     </Box>
   );
