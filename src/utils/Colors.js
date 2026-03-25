@@ -3,3 +3,4 @@ export const bggreen = "#E5FFF7";
 export const redColor = "#D80027";
 export const bgred = "#FFF0F2"
 export const grayColor = "#515151";
+export const borderColor = "#D9D9D9";

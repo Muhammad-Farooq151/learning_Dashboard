@@ -15,21 +15,23 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   IconButton,
   Stack,
   Skeleton,
   Chip,
+  Tooltip,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
-import EditRoundedIcon from "@mui/icons-material/EditRounded";
-import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
-import { greenColor } from "@/utils/Colors";
+import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
+import { bggreen, bgred, borderColor, greenColor } from "@/utils/Colors";
 import { getJSON, deleteJSON } from "@/utils/http";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
+import Image from "next/image";
 import {
   Dialog,
   DialogTitle,
@@ -42,6 +44,10 @@ import {
 function TutorsManagement() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const [specialityFilter, setSpecialityFilter] = useState("All Specialities");
+  const [courseFilter, setCourseFilter] = useState("All Tutors");
+  const [specialityAnchorEl, setSpecialityAnchorEl] = useState(null);
+  const [courseAnchorEl, setCourseAnchorEl] = useState(null);
   const [tutors, setTutors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewOpen, setViewOpen] = useState(false);
@@ -135,22 +141,77 @@ function TutorsManagement() {
     setSelectedTutor(null);
   };
 
+  const handleSpecialityClick = (event) => {
+    setSpecialityAnchorEl(event.currentTarget);
+  };
+
+  const handleSpecialityClose = () => {
+    setSpecialityAnchorEl(null);
+  };
+
+  const handleSpecialitySelect = (value) => {
+    setSpecialityFilter(value);
+    handleSpecialityClose();
+  };
+
+  const handleCourseClick = (event) => {
+    setCourseAnchorEl(event.currentTarget);
+  };
+
+  const handleCourseClose = () => {
+    setCourseAnchorEl(null);
+  };
+
+  const handleCourseSelect = (value) => {
+    setCourseFilter(value);
+    handleCourseClose();
+  };
+
+  const specialityOptions = [
+    "All Specialities",
+    ...Array.from(
+      new Set(
+        tutors
+          .map((tutor) => tutor.speciality?.trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b)),
+  ];
+
   const filteredTutors = tutors.filter((tutor) => {
     const searchLower = searchQuery.toLowerCase();
-    return (
+    const matchesSearch = (
       tutor.name?.toLowerCase().includes(searchLower) ||
       tutor.email?.toLowerCase().includes(searchLower) ||
       tutor.speciality?.toLowerCase().includes(searchLower) ||
       tutor.phoneNumber?.toLowerCase().includes(searchLower)
     );
+
+    const matchesSpeciality =
+      specialityFilter === "All Specialities" ||
+      tutor.speciality === specialityFilter;
+
+    const courseCount = Array.isArray(tutor.courses) ? tutor.courses.length : 0;
+    const matchesCourseFilter =
+      courseFilter === "All Tutors" ||
+      (courseFilter === "Assigned Courses" && courseCount > 0) ||
+      (courseFilter === "No Courses" && courseCount === 0);
+
+    return matchesSearch && matchesSpeciality && matchesCourseFilter;
   });
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 } }}>
       <Stack spacing={3}>
         {/* Header */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
-          <Typography variant="h4" fontWeight={700}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          justifyContent="space-between"
+          alignItems={{ xs: "stretch", sm: "center" }}
+          flexWrap="wrap"
+          gap={2}
+        >
+          <Typography variant="h4" fontWeight={600}>
             Tutors Management
           </Typography>
           <Button
@@ -160,6 +221,8 @@ function TutorsManagement() {
             sx={{
               backgroundColor: greenColor,
               textTransform: "none",
+              width: { xs: "100%", sm: "auto" },
+              alignSelf: { xs: "stretch", sm: "auto" },
               "&:hover": {
                 backgroundColor: greenColor,
                 opacity: 0.9,
@@ -169,34 +232,204 @@ function TutorsManagement() {
             Add New Tutor
           </Button>
         </Stack>
+        <Box sx={{ border: `1px solid ${borderColor}`, borderRadius: 2 }}>
 
         {/* Search */}
-        <Card>
-          <CardContent>
-            <TextField
-              fullWidth
-              placeholder="Search tutors by name, email, speciality, or phone..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: 2,
-                },
-              }}
-            />
+        <Card
+          sx={{
+            // borderRadius: 4,
+            // border: `1px solid ${borderColor}`,
+            boxShadow: "none",
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={2}
+              alignItems={{ xs: "stretch", md: "center" }}
+            >
+              <TextField
+                fullWidth
+                placeholder="Search tutors by name, email, speciality, or phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRoundedIcon sx={{ color: "black" }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  width: "100%",
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 2,
+                    height: "56px",
+                    bgcolor: "rgba(244, 244, 244, 1)",
+                    border: "none",
+                    "& fieldset": {
+                      border: "none",
+                    },
+                    "&:hover fieldset": {
+                      border: "none",
+                    },
+                    "&.Mui-focused fieldset": {
+                      border: "none",
+                    },
+                  },
+                }}
+              />
+
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={2}
+                sx={{ width: { xs: "100%", md: "auto" } }}
+              >
+              <Box sx={{ position: "relative", width: { xs: "100%", sm: "50%", md: "auto" } }}>
+                <Button
+                  variant="outlined"
+                  onClick={handleSpecialityClick}
+                  endIcon={<KeyboardArrowDownRoundedIcon />}
+                  sx={{
+                    border: "none",
+                    height: "56px",
+                    bgcolor: "rgba(244, 244, 244, 1)",
+                    color: "#64748B",
+                    textTransform: "none",
+                    minWidth: { xs: "100%", md: 180 },
+                    width: "100%",
+                    borderRadius: 2,
+                    justifyContent: "space-between",
+                    "&:hover": {
+                      border: "none",
+                      backgroundColor: "rgba(244, 244, 244, 1)",
+                    },
+                  }}
+                >
+                  {specialityFilter}
+                </Button>
+
+                <Menu
+                  anchorEl={specialityAnchorEl}
+                  open={Boolean(specialityAnchorEl)}
+                  onClose={handleSpecialityClose}
+                  disableScrollLock
+                  anchorOrigin={{
+                    vertical: "bottom",
+                    horizontal: "left",
+                  }}
+                  transformOrigin={{
+                    vertical: "top",
+                    horizontal: "left",
+                  }}
+                  PaperProps={{
+                    sx: {
+                      mt: 0.5,
+                      minWidth: { xs: 220, md: 180 },
+                      boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+                      borderRadius: 2,
+                      border: "1px solid #E2E8F0",
+                    },
+                  }}
+                  MenuListProps={{
+                    sx: { py: 0.5 },
+                  }}
+                >
+                  {specialityOptions.map((option) => (
+                    <MenuItem
+                      key={option}
+                      onClick={() => handleSpecialitySelect(option)}
+                      sx={{
+                        backgroundColor:
+                          specialityFilter === option ? "#F1F5F9" : "transparent",
+                        "&:hover": { backgroundColor: "#F8FAFC" },
+                      }}
+                    >
+                      {option}
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </Box>
+
+              <Box sx={{ position: "relative", width: { xs: "100%", sm: "50%", md: "auto" } }}>
+                <Button
+                  variant="outlined"
+                  onClick={handleCourseClick}
+                  endIcon={<KeyboardArrowDownRoundedIcon />}
+                  sx={{
+                    border: "none",
+                    height: "56px",
+                    bgcolor: "rgba(244, 244, 244, 1)",
+                    color: "#64748B",
+                    textTransform: "none",
+                    minWidth: { xs: "100%", md: 170 },
+                    width: "100%",
+                    borderRadius: 2,
+                    justifyContent: "space-between",
+                    "&:hover": {
+                      border: "none",
+                      backgroundColor: "rgba(244, 244, 244, 1)",
+                    },
+                  }}
+                >
+                  {courseFilter}
+                </Button>
+
+                <Menu
+                  anchorEl={courseAnchorEl}
+                  open={Boolean(courseAnchorEl)}
+                  onClose={handleCourseClose}
+                  disableScrollLock
+                  anchorOrigin={{
+                    vertical: "bottom",
+                    horizontal: "left",
+                  }}
+                  transformOrigin={{
+                    vertical: "top",
+                    horizontal: "left",
+                  }}
+                  PaperProps={{
+                    sx: {
+                      mt: 0.5,
+                      minWidth: { xs: 220, md: 170 },
+                      boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+                      borderRadius: 2,
+                      border: "1px solid #E2E8F0",
+                    },
+                  }}
+                  MenuListProps={{
+                    sx: { py: 0.5 },
+                  }}
+                >
+                  {["All Tutors", "Assigned Courses", "No Courses"].map((option) => (
+                    <MenuItem
+                      key={option}
+                      onClick={() => handleCourseSelect(option)}
+                      sx={{
+                        backgroundColor:
+                          courseFilter === option ? "#F1F5F9" : "transparent",
+                        "&:hover": { backgroundColor: "#F8FAFC" },
+                      }}
+                    >
+                      {option}
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </Box>
+              </Stack>
+            </Stack>
           </CardContent>
         </Card>
 
         {/* Table */}
-        <Card>
-          <CardContent>
+        <Card
+          sx={{
+            // borderRadius: 4,
+            // border: `1px solid ${borderColor}`,
+            boxShadow: "none",
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             {loading ? (
               <Stack spacing={2}>
                 {[1, 2, 3, 4, 5].map((i) => (
@@ -211,9 +444,19 @@ function TutorsManagement() {
               </Box>
             ) : (
               <TableContainer sx={{ overflowX: "auto" }}>
-                <Table>
+                <Table sx={{ minWidth: { xs: 760, md: "auto" } }}>
                   <TableHead>
-                    <TableRow>
+                    <TableRow
+                      sx={{
+                        backgroundColor: "#1E293B",
+                        "& th": {
+                          color: "#fff",
+                          fontWeight: 600,
+                          borderBottom: "none",
+                          py: 2,
+                        },
+                      }}
+                    >
                       <TableCell>Name</TableCell>
                       <TableCell>Email</TableCell>
                       <TableCell>Speciality</TableCell>
@@ -278,27 +521,80 @@ function TutorsManagement() {
                         </TableCell>
                         <TableCell align="right">
                           <Stack direction="row" spacing={1} justifyContent="flex-end">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleViewClick(tutor)}
-                              sx={{ color: "#2563EB" }}
-                            >
-                              <VisibilityRoundedIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleEditClick(tutor)}
-                              sx={{ color: greenColor }}
-                            >
-                              <EditRoundedIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDeleteClick(tutor)}
-                              sx={{ color: "error.main" }}
-                            >
-                              <DeleteRoundedIcon fontSize="small" />
-                            </IconButton>
+                            <Tooltip title="View">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleViewClick(tutor)}
+                                sx={{
+                                  bgcolor: "#EFF6FF",
+                                  color: "#2563EB",
+                                  borderRadius: 1.5,
+                                  "&:hover": {
+                                    bgcolor: "#DBEAFE",
+                                  },
+                                }}
+                              >
+                                <VisibilityRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Edit">
+                              <Box
+                                onClick={() => handleEditClick(tutor)}
+                                sx={{
+                                  bgcolor: bggreen,
+                                  py: "8px",
+                                  px: "12px",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  "&:hover": {
+                                    bgcolor: "#D8F8EC",
+                                  },
+                                }}
+                              >
+                                <Image
+                                  src="/images/comp/greenedit.png"
+                                  alt="edit"
+                                  width={1000}
+                                  height={1000}
+                                  style={{
+                                    width: "20px",
+                                    height: "20px",
+                                  }}
+                                />
+                              </Box>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <Box
+                                onClick={() => handleDeleteClick(tutor)}
+                                sx={{
+                                  bgcolor: bgred,
+                                  py: "8px",
+                                  px: "12px",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  "&:hover": {
+                                    bgcolor: "#FFE4E8",
+                                  },
+                                }}
+                              >
+                                <Image
+                                  src="/images/comp/redbin.png"
+                                  alt="delete"
+                                  width={1000}
+                                  height={1000}
+                                  style={{
+                                    width: "20px",
+                                    height: "20px",
+                                  }}
+                                />
+                              </Box>
+                            </Tooltip>
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -309,6 +605,7 @@ function TutorsManagement() {
             )}
           </CardContent>
         </Card>
+        </Box>
       </Stack>
 
       <Dialog open={viewOpen} onClose={handleViewClose} maxWidth="sm" fullWidth>
