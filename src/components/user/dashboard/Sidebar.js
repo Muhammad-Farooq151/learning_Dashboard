@@ -20,6 +20,37 @@ import Swal from "sweetalert2";
 import { clearAuthToken } from "@/utils/authStorage";
 import { USER_NAV_ITEMS } from "@/components/user/navigation/navConfig";
 
+function UserNavIcon({ src, active }) {
+  return (
+    <Box
+      sx={{
+        width: 22,
+        height: 22,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Box
+        sx={{
+          width: "22px",
+          height: "22px",
+          display: "block",
+          bgcolor: active ? "#FFFFFF" : "#000000",
+          WebkitMaskImage: `url(${src})`,
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          WebkitMaskSize: "contain",
+          maskImage: `url(${src})`,
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+          maskSize: "contain",
+        }}
+      />
+    </Box>
+  );
+}
+
 function NavItem({ item, active, onNavigate }) {
   return (
     <ListItemButton
@@ -55,7 +86,9 @@ function NavItem({ item, active, onNavigate }) {
           : {},
       }}
     >
-      <ListItemIcon sx={{height:"22px",width:"22px"}}>{item.icon}</ListItemIcon>
+      <ListItemIcon sx={{ height: "22px", width: "22px" }}>
+        <UserNavIcon src={item.iconPath} active={active} />
+      </ListItemIcon>
       <ListItemText
         primary={
           <Typography variant="body2" fontSize={"14px"} fontWeight={active ? 600 : 500}>
