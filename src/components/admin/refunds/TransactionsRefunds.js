@@ -35,7 +35,7 @@ import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownR
 import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
-import { bggreen, greenColor } from "@/utils/Colors";
+import { bggreen, greenColor, tableHeaderBg, tableHeaderText } from "@/utils/Colors";
 import { getJSON, putJSON } from "@/utils/http";
 import Swal from "sweetalert2";
 
@@ -465,9 +465,9 @@ function TransactionsRefunds() {
                 <TableHead>
                   <TableRow
                     sx={{
-                      backgroundColor: "#1E293B",
+                      backgroundColor: tableHeaderBg,
                       "& th": {
-                        color: "#fff",
+                        color: tableHeaderText,
                         fontWeight: 600,
                         borderBottom: "none",
                         py: 2,

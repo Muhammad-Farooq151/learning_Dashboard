@@ -43,7 +43,7 @@ import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import { ClipLoader } from "react-spinners";
 import Swal from "sweetalert2";
 import * as Yup from "yup";
-import { greenColor } from "@/utils/Colors";
+import { greenColor, tableHeaderBg, tableHeaderText } from "@/utils/Colors";
 import { getJSON, postJSON } from "@/utils/http";
 import {
   FRONTEND_EMAIL_TEMPLATES,
@@ -1078,7 +1078,7 @@ export default function EmailsManagement({
           >
             <Table>
               <TableHead>
-                <TableRow sx={{ bgcolor: "#F8FAFC" }}>
+                <TableRow sx={{ bgcolor: tableHeaderBg }}>
                   <TableCell padding="checkbox">
                     <Checkbox
                       checked={allFilteredSelected}
@@ -1086,10 +1086,10 @@ export default function EmailsManagement({
                       onChange={handleToggleSelectAllFiltered}
                     />
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Learner</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Email</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Enrolled Courses</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: tableHeaderText }}>Learner</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: tableHeaderText }}>Email</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: tableHeaderText }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: tableHeaderText }}>Enrolled Courses</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
