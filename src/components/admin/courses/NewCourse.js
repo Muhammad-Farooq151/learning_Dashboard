@@ -1793,7 +1793,7 @@ function NewCourse({ courseId = null }) {
                   },
                 }}
               >
-                + Add More FAQs
+                Add More FAQs
               </Button>
             </Box>
           </>

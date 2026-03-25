@@ -11,19 +11,12 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Divider,
   IconButton,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
 } from "@mui/material";
 import PowerSettingsNewOutlinedIcon from "@mui/icons-material/PowerSettingsNewOutlined";
 import { ClipLoader } from "react-spinners";
 import { greenColor } from "@/components/utils/Colors";
-import { toast } from "react-hot-toast";
+import Swal from "sweetalert2";
 import { clearAuthToken } from "@/utils/authStorage";
 import { USER_NAV_ITEMS } from "@/components/user/navigation/navConfig";
 
@@ -78,11 +71,9 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [navLoading, setNavLoading] = useState(false);
-  const [logoutLoading, setLogoutLoading] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [navigationStartPath, setNavigationStartPath] = useState(null);
   const [mounted, setMounted] = useState(false);
-  const isLoading = navLoading || logoutLoading;
+  const isLoading = navLoading;
 
   useEffect(() => {
     setMounted(true);
@@ -154,22 +145,57 @@ export default function Sidebar() {
     [router, pathname]
   );
 
-  const handleLogoutRequest = () => setConfirmOpen(true);
-  const handleCancelLogout = () => {
-    if (!logoutLoading) setConfirmOpen(false);
-  };
+  const handleLogoutRequest = useCallback(async () => {
+    const result = await Swal.fire({
+      title: "Confirm Logout",
+      text: "Are you sure you want to logout? You need to login again. This will clear your saved session from this device.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#6c757d",
+      confirmButtonText: "Yes, Logout",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+      scrollbarPadding: false,
+    });
 
-  const performLogout = useCallback(async () => {
-    setConfirmOpen(false);
-    setLogoutLoading(true);
-    try {
-      clearAuthToken();
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      toast.success("Logged out successfully");
-      router.push("/");
-    } catch (error) {
-      setLogoutLoading(false);
-      toast.error("Failed to logout. Please try again.");
+    if (result.isConfirmed) {
+      Swal.fire({
+        title: "Logging out...",
+        text: "Please wait while we log you out.",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        scrollbarPadding: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      try {
+        clearAuthToken();
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        await Swal.fire({
+          icon: "success",
+          title: "Logged Out!",
+          text: "You have been successfully logged out.",
+          confirmButtonColor: greenColor,
+          confirmButtonText: "OK",
+          scrollbarPadding: false,
+        });
+
+        router.push("/");
+      } catch (error) {
+        Swal.fire({
+          icon: "error",
+          title: "Logout Failed",
+          text: "Failed to logout. Please try again.",
+          confirmButtonColor: "#d33",
+          confirmButtonText: "OK",
+          scrollbarPadding: false,
+        });
+      }
     }
   }, [router]);
 
@@ -213,46 +239,59 @@ export default function Sidebar() {
         <Box sx={{ flexGrow: 1 }} />
 
         {/* Logout */}
-        <Stack direction="row" alignItems="center" sx={{ px: 1, pb: 1, pt: 0.5 }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          onClick={handleLogoutRequest}
+          sx={{
+            px: 1,
+            pb: 1,
+            pt: 0.5,
+            cursor: "pointer",
+            borderRadius: 2.5,
+            transition: "all .28s cubic-bezier(0.22, 1, 0.36, 1)",
+            transformOrigin: "left center",
+            "& .logout-icon": {
+              transition: "all .28s cubic-bezier(0.22, 1, 0.36, 1)",
+            },
+            "& .logout-text": {
+              transition: "all .28s cubic-bezier(0.22, 1, 0.36, 1)",
+            },
+            "&:hover": {
+              bgcolor: "rgba(180, 35, 24, 0.08)",
+              transform: "translateX(4px) scale(1.015)",
+              boxShadow: "0 14px 30px rgba(180, 35, 24, 0.12)",
+            },
+            "&:hover .logout-icon": {
+              bgcolor: "#b42318",
+              color: "#fff",
+              transform: "rotate(-8deg) scale(1.08)",
+              boxShadow: "0 10px 24px rgba(180, 35, 24, 0.24)",
+            },
+            "&:hover .logout-text": {
+              color: "#b42318",
+              letterSpacing: "0.02em",
+            },
+          }}
+        >
           <IconButton
             onClick={handleLogoutRequest}
             size="small"
+            className="logout-icon"
             sx={{
               mr: 1,
               bgcolor: "rgba(0,0,0,0.04)",
-              ":hover": { bgcolor: "rgba(0,0,0,0.06)" },
+              color: "text.primary",
+              ":hover": { bgcolor: "rgba(0,0,0,0.04)" },
             }}
           >
             <PowerSettingsNewOutlinedIcon fontSize="small" />
           </IconButton>
-          <Typography variant="body2" sx={{ cursor: "pointer" }} onClick={handleLogoutRequest}>
+          <Typography variant="body2" className="logout-text" sx={{ fontWeight: 600 }}>
             Logout
           </Typography>
         </Stack>
       </Box>
-
-      <Dialog open={confirmOpen} onClose={handleCancelLogout} maxWidth="xs" fullWidth>
-        <DialogTitle fontWeight={700}>Confirm Logout</DialogTitle>
-        <DialogContent>
-          <DialogContentText color="text.primary">
-            Are you sure you want to logout? This will clear your saved session from this device.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCancelLogout} sx={{ textTransform: "none" }} disabled={logoutLoading}>
-            Cancel
-          </Button>
-          <Button
-            onClick={performLogout}
-            variant="contained"
-            color="error"
-            sx={{ textTransform: "none" }}
-            disabled={logoutLoading}
-          >
-            Logout
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Full-viewport overlay loader - Revamped with Portal */}
       {isLoading && mounted && createPortal(
