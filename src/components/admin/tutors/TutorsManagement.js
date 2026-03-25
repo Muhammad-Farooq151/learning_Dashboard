@@ -25,16 +25,27 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import { greenColor } from "@/utils/Colors";
 import { getJSON, deleteJSON } from "@/utils/http";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button as MuiButton,
+  Divider,
+} from "@mui/material";
 
 function TutorsManagement() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [tutors, setTutors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [selectedTutor, setSelectedTutor] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -112,6 +123,16 @@ function TutorsManagement() {
   const handleEditClick = (tutor) => {
     const tutorId = tutor._id || tutor.id;
     router.push(`/admin/tutors/edit/${tutorId}`);
+  };
+
+  const handleViewClick = (tutor) => {
+    setSelectedTutor(tutor);
+    setViewOpen(true);
+  };
+
+  const handleViewClose = () => {
+    setViewOpen(false);
+    setSelectedTutor(null);
   };
 
   const filteredTutors = tutors.filter((tutor) => {
@@ -259,6 +280,13 @@ function TutorsManagement() {
                           <Stack direction="row" spacing={1} justifyContent="flex-end">
                             <IconButton
                               size="small"
+                              onClick={() => handleViewClick(tutor)}
+                              sx={{ color: "#2563EB" }}
+                            >
+                              <VisibilityRoundedIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
                               onClick={() => handleEditClick(tutor)}
                               sx={{ color: greenColor }}
                             >
@@ -282,6 +310,77 @@ function TutorsManagement() {
           </CardContent>
         </Card>
       </Stack>
+
+      <Dialog open={viewOpen} onClose={handleViewClose} maxWidth="sm" fullWidth>
+        <DialogTitle fontWeight={700}>Tutor Details</DialogTitle>
+        <DialogContent dividers>
+          {selectedTutor && (
+            <Stack spacing={2.25}>
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Name
+                </Typography>
+                <Typography variant="body1" fontWeight={600}>
+                  {selectedTutor.name || "N/A"}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Email
+                </Typography>
+                <Typography variant="body1">{selectedTutor.email || "N/A"}</Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Speciality
+                </Typography>
+                <Typography variant="body1">{selectedTutor.speciality || "N/A"}</Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Phone Number
+                </Typography>
+                <Typography variant="body1">{selectedTutor.phoneNumber || "N/A"}</Typography>
+              </Box>
+
+              <Divider />
+
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Assigned Courses
+                </Typography>
+                {selectedTutor.courses && selectedTutor.courses.length > 0 ? (
+                  <Stack direction="row" spacing={1} flexWrap="wrap" gap={1} mt={1}>
+                    {selectedTutor.courses.map((course, index) => {
+                      const courseTitle = typeof course === "object" ? course.title : course;
+                      return (
+                        <Chip
+                          key={`${courseTitle}-${index}`}
+                          label={courseTitle || "Course"}
+                          size="small"
+                          sx={{ fontWeight: 500 }}
+                        />
+                      );
+                    })}
+                  </Stack>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" mt={1}>
+                    No courses assigned yet.
+                  </Typography>
+                )}
+              </Box>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <MuiButton onClick={handleViewClose} sx={{ textTransform: "none" }}>
+            Close
+          </MuiButton>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
