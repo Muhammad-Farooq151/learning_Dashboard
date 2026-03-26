@@ -394,11 +394,19 @@ function NewCourse({ courseId = null }) {
   const calculateDiscountedPrice = () => {
     const originalPrice = parseFloat(courseData.price) || 0;
     const discount = parseFloat(courseData.discountPercentage) || 0;
-    if (originalPrice > 0 && discount > 0) {
-      const discountAmount = (originalPrice * discount) / 100;
-      return (originalPrice - discountAmount).toFixed(2);
+    const tax = parseFloat(courseData.taxPercentage) || 0;
+
+    if (originalPrice <= 0) {
+      return "0.00";
     }
-    return originalPrice.toFixed(2);
+
+    const discountedPrice =
+      discount > 0 ? originalPrice - (originalPrice * discount) / 100 : originalPrice;
+
+    const finalPriceWithTax =
+      tax > 0 ? discountedPrice + (discountedPrice * tax) / 100 : discountedPrice;
+
+    return finalPriceWithTax.toFixed(2);
   };
 
   const handleAddSkill = () => {
@@ -1334,7 +1342,7 @@ function NewCourse({ courseId = null }) {
                   />
                 </Grid>
 
-                <Grid size={{ xs: 12, md: 4 }}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <Typography variant="body2" fontWeight={500} mb={1}>
                     Original Price * 
                   </Typography>
