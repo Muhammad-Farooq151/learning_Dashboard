@@ -8,6 +8,7 @@ import {
   CardContent,
   Typography,
   TextField,
+  InputAdornment,
   Button,
   Stack,
   Grid,
@@ -1335,12 +1336,21 @@ function NewCourse({ courseId = null }) {
 
                 <Grid size={{ xs: 12, md: 4 }}>
                   <Typography variant="body2" fontWeight={500} mb={1}>
-                    Original Price ($) * 
+                    Original Price * 
                   </Typography>
                   <TextField
                     fullWidth
                     type="text"
                     placeholder="e,g:$80"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Typography variant="body1" fontWeight={600} color="text.secondary">
+                            $
+                          </Typography>
+                        </InputAdornment>
+                      ),
+                    }}
                     value={courseData.price}
                     onChange={(e) => {
                       // Only allow numbers and decimal point
@@ -1375,6 +1385,15 @@ function NewCourse({ courseId = null }) {
                     fullWidth
                     type="text"
                     placeholder="eg: 20% (max 100%)"
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Typography variant="body1" fontWeight={600} color="text.secondary">
+                            %
+                          </Typography>
+                        </InputAdornment>
+                      ),
+                    }}
                     value={courseData.discountPercentage}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -1411,6 +1430,15 @@ function NewCourse({ courseId = null }) {
                     fullWidth
                     type="text"
                     placeholder="eg: 8% (min 0%, max 70%)"
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Typography variant="body1" fontWeight={600} color="text.secondary">
+                            %
+                          </Typography>
+                        </InputAdornment>
+                      ),
+                    }}
                     value={courseData.taxPercentage}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -1446,6 +1474,15 @@ function NewCourse({ courseId = null }) {
                   <TextField
                     fullWidth
                     type="text"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Typography variant="body1" fontWeight={600} color="text.secondary">
+                            $
+                          </Typography>
+                        </InputAdornment>
+                      ),
+                    }}
                     value={calculateDiscountedPrice()}
                     disabled
                     sx={{
@@ -1521,7 +1558,7 @@ function NewCourse({ courseId = null }) {
 
                 <Grid size={{ xs: 12 }}>
                   <Typography variant="body2" fontWeight={500} mb={1}>
-                    Description
+                    Description *
                   </Typography>
                   <TextField
                     fullWidth
