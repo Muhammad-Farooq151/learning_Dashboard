@@ -35,7 +35,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import { bggreen, bgred, greenColor, redColor } from "@/utils/Colors";
+import { bggreen, bgred, greenColor, redColor, tableHeaderBg, tableHeaderText } from "@/utils/Colors";
 import Image from "next/image";
 import { getJSON } from "@/utils/http";
 
@@ -352,9 +352,9 @@ function UsersManagement() {
               <TableHead>
                 <TableRow
                   sx={{
-                    backgroundColor: "#1E293B",
+                    backgroundColor: tableHeaderBg,
                     "& th": {
-                      color: "#fff",
+                      color: tableHeaderText,
                       fontWeight: 600,
                       borderBottom: "none",
                       py: 2,

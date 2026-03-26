@@ -23,6 +23,37 @@ import Swal from "sweetalert2";
 import { clearAuthToken } from "@/utils/authStorage";
 import { ADMIN_NAV_ITEMS } from "@/components/admin/navigation/navConfig";
 
+function AdminNavIcon({ src, active }) {
+  return (
+    <Box
+      sx={{
+        width: 22,
+        height: 22,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Box
+        sx={{
+          width: "22px",
+          height: "22px",
+          display: "block",
+          bgcolor: active ? "#FFFFFF" : "#000000",
+          WebkitMaskImage: `url(${src})`,
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          WebkitMaskSize: "contain",
+          maskImage: `url(${src})`,
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+          maskSize: "contain",
+        }}
+      />
+    </Box>
+  );
+}
+
 function NavItem({ item, active, onNavigate, pathname }) {
   const hasChildren = Array.isArray(item.children) && item.children.length > 0;
   const isTreeActive = hasChildren && item.children.some((child) => pathname === child.href);
@@ -54,7 +85,9 @@ function NavItem({ item, active, onNavigate, pathname }) {
             transition: "background-color .2s ease, color .2s ease",
           }}
         >
-          <ListItemIcon sx={{ height: "22px", width: "22px" }}>{item.icon}</ListItemIcon>
+          <ListItemIcon sx={{ height: "22px", width: "22px" }}>
+            <AdminNavIcon src={item.iconPath} active={isTreeActive} />
+          </ListItemIcon>
           <ListItemText
             primary={
               <Typography variant="body2" fontSize={"14px"} fontWeight={700}>
@@ -139,7 +172,9 @@ function NavItem({ item, active, onNavigate, pathname }) {
           : {},
       }}
     >
-      <ListItemIcon sx={{height:"22px",width:"22px"}}>{item.icon}</ListItemIcon>
+      <ListItemIcon sx={{ height: "22px", width: "22px" }}>
+        <AdminNavIcon src={item.iconPath} active={active} />
+      </ListItemIcon>
       <ListItemText
         primary={
           <Typography variant="body2" fontSize={"14px"} fontWeight={active ? 600 : 500}>

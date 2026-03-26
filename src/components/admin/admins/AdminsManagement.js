@@ -16,19 +16,18 @@ import {
   TableHead,
   TableRow,
   Paper,
-  IconButton,
   Stack,
   Skeleton,
   Chip,
+  Tooltip,
 } from "@mui/material";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
-import EditRoundedIcon from "@mui/icons-material/EditRounded";
-import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
-import { greenColor, redColor, bggreen, bgred } from "@/utils/Colors";
+import { greenColor, redColor, bggreen, bgred, borderColor, tableHeaderBg, tableHeaderText } from "@/utils/Colors";
 import { getJSON, deleteJSON } from "@/utils/http";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
+import Image from "next/image";
 
 const formatStatus = (status) => {
   const s = String(status || "active").toLowerCase();
@@ -147,7 +146,13 @@ function AdminsManagement() {
     <Box sx={{ p: { xs: 2, md: 4 } }}>
       <Stack spacing={3}>
         {/* Header */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          justifyContent="space-between"
+          alignItems={{ xs: "stretch", sm: "center" }}
+          flexWrap="wrap"
+          gap={2}
+        >
           <Typography variant="h4" fontWeight={700}>
             Admins Management
           </Typography>
@@ -158,6 +163,8 @@ function AdminsManagement() {
             sx={{
               backgroundColor: greenColor,
               textTransform: "none",
+              width: { xs: "100%", sm: "auto" },
+              alignSelf: { xs: "stretch", sm: "auto" },
               "&:hover": {
                 backgroundColor: greenColor,
                 opacity: 0.9,
@@ -167,10 +174,15 @@ function AdminsManagement() {
             Add New Admin
           </Button>
         </Stack>
+        <Box sx={{ border: `1px solid ${borderColor}`, borderRadius: 2 }}>
 
         {/* Search */}
-        <Card>
-          <CardContent>
+        <Card
+          sx={{
+            boxShadow: "none",
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <TextField
               fullWidth
               placeholder="Search admins by name, email, or phone..."
@@ -179,13 +191,26 @@ function AdminsManagement() {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchRoundedIcon />
+                    <SearchRoundedIcon sx={{ color: "black" }} />
                   </InputAdornment>
                 ),
               }}
               sx={{
+                width: "100%",
                 "& .MuiOutlinedInput-root": {
                   borderRadius: 2,
+                  height: "56px",
+                  bgcolor: "rgba(244, 244, 244, 1)",
+                  border: "none",
+                  "& fieldset": {
+                    border: "none",
+                  },
+                  "&:hover fieldset": {
+                    border: "none",
+                  },
+                  "&.Mui-focused fieldset": {
+                    border: "none",
+                  },
                 },
               }}
             />
@@ -193,8 +218,12 @@ function AdminsManagement() {
         </Card>
 
         {/* Table */}
-        <Card>
-          <CardContent>
+        <Card
+          sx={{
+            boxShadow: "none",
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             {loading ? (
               <Stack spacing={2}>
                 {[1, 2, 3, 4, 5].map((i) => (
@@ -211,7 +240,17 @@ function AdminsManagement() {
               <TableContainer sx={{ overflowX: "auto" }}>
                 <Table>
                   <TableHead>
-                    <TableRow>
+                    <TableRow
+                      sx={{
+                        backgroundColor: tableHeaderBg,
+                        "& th": {
+                          color: tableHeaderText,
+                          fontWeight: 600,
+                          borderBottom: "none",
+                          py: 2,
+                        },
+                      }}
+                    >
                       <TableCell>Name</TableCell>
                       <TableCell>Email</TableCell>
                       <TableCell>Phone Number</TableCell>
@@ -223,7 +262,19 @@ function AdminsManagement() {
                   </TableHead>
                   <TableBody>
                     {filteredAdmins.map((admin) => (
-                      <TableRow key={admin._id || admin.id} hover>
+                      <TableRow
+                        key={admin._id || admin.id}
+                        hover
+                        sx={{
+                          "&:hover": {
+                            backgroundColor: "#F8FAFC",
+                          },
+                          "& td": {
+                            borderBottom: "1px solid #E2E8F0",
+                            py: 2,
+                          },
+                        }}
+                      >
                         <TableCell>
                           <Typography variant="body2" fontWeight={500}>
                             {admin.fullName || "N/A"}
@@ -268,20 +319,64 @@ function AdminsManagement() {
                         </TableCell>
                         <TableCell align="right">
                           <Stack direction="row" spacing={1} justifyContent="flex-end">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleEditClick(admin)}
-                              sx={{ color: greenColor }}
-                            >
-                              <EditRoundedIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDeleteClick(admin)}
-                              sx={{ color: "error.main" }}
-                            >
-                              <DeleteRoundedIcon fontSize="small" />
-                            </IconButton>
+                            <Tooltip title="Edit">
+                              <Box
+                                onClick={() => handleEditClick(admin)}
+                                sx={{
+                                  bgcolor: bggreen,
+                                  py: "8px",
+                                  px: "12px",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  "&:hover": {
+                                    bgcolor: "#D8F8EC",
+                                  },
+                                }}
+                              >
+                                <Image
+                                  src="/images/comp/greenedit.png"
+                                  alt="edit"
+                                  width={1000}
+                                  height={1000}
+                                  style={{
+                                    width: "20px",
+                                    height: "20px",
+                                  }}
+                                />
+                              </Box>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <Box
+                                onClick={() => handleDeleteClick(admin)}
+                                sx={{
+                                  bgcolor: bgred,
+                                  py: "8px",
+                                  px: "12px",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  "&:hover": {
+                                    bgcolor: "#FFE4E8",
+                                  },
+                                }}
+                              >
+                                <Image
+                                  src="/images/comp/redbin.png"
+                                  alt="delete"
+                                  width={1000}
+                                  height={1000}
+                                  style={{
+                                    width: "20px",
+                                    height: "20px",
+                                  }}
+                                />
+                              </Box>
+                            </Tooltip>
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -292,6 +387,7 @@ function AdminsManagement() {
             )}
           </CardContent>
         </Card>
+        </Box>
       </Stack>
     </Box>
   );

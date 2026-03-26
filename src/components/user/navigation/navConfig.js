@@ -1,17 +1,10 @@
-import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
-import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
-import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
-import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
-import ExploreOutlinedIcon from "@mui/icons-material/ExploreOutlined";
-import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-
 export const USER_NAV_ITEMS = [
-  { label: "Dashboard", href: "/user/dashboard", icon: <DashboardRoundedIcon /> },
-  { label: "My Learnings", href: "/user/my-leaning", icon: <MenuBookOutlinedIcon /> },
-  { label: "Certificates", href: "/user/certifications", icon: <WorkspacePremiumOutlinedIcon /> },
-  { label: "AI Tutor", href: "/user/ai-tutor", icon: <AutoAwesomeOutlinedIcon /> },
-  { label: "Explore Courses", href: "/user/explore-courses", icon: <ExploreOutlinedIcon /> },
-  { label: "Settings", href: "/user/settings", icon: <SettingsOutlinedIcon /> },
+  { label: "Dashboard", href: "/user/dashboard", iconPath: "/images/sidebar/user/dashboard.svg" },
+  { label: "My Learnings", href: "/user/my-leaning", iconPath: "/images/sidebar/user/mylearnings.svg" },
+  { label: "Certificates", href: "/user/certifications", iconPath: "/images/sidebar/user/cetificates.svg" },
+  { label: "AI Tutor", href: "/user/ai-tutor", iconPath: "/images/sidebar/user/aitutor.svg" },
+  { label: "Explore Courses", href: "/user/explore-courses", iconPath: "/images/sidebar/user/explore.svg" },
+  { label: "Settings", href: "/user/settings", iconPath: "/images/sidebar/user/settings.svg" },
 ];
 
 const ROUTE_META = [

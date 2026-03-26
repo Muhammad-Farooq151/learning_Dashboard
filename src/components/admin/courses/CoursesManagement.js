@@ -32,7 +32,7 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
-import { bggreen, bgred, greenColor } from "@/utils/Colors";
+import { bggreen, bgred, greenColor, tableHeaderBg, tableHeaderText } from "@/utils/Colors";
 import Image from "next/image";
 import { getJSON, deleteJSON } from "@/utils/http";
 import Swal from "sweetalert2";
@@ -510,9 +510,9 @@ function CoursesManagement() {
               <TableHead>
                 <TableRow
                   sx={{
-                    backgroundColor: "#1E293B",
+                    backgroundColor: tableHeaderBg,
                     "& th": {
-                      color: "#fff",
+                      color: tableHeaderText,
                       fontWeight: 600,
                       borderBottom: "none",
                       py: 2,

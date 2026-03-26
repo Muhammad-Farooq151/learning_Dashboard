@@ -1,12 +1,3 @@
-import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
-import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
-import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
-import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import { SupervisedUserCircle } from "@mui/icons-material";
-import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
-import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
-import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
-
 export const ADMIN_EMAIL_NAV_ITEMS = [
   { label: "Emails", href: "/admin/emails" },
   { label: "Course Updates", href: "/admin/emails/course-updates" },
@@ -16,19 +7,19 @@ export const ADMIN_EMAIL_NAV_ITEMS = [
 ];
 
 export const ADMIN_NAV_ITEMS = [
-  { label: "Dashboard", href: "/admin/dashboard", icon: <DashboardRoundedIcon /> },
-  { label: "Courses", href: "/admin/courses", icon: <MenuBookOutlinedIcon /> },
-  { label: "Users", href: "/admin/users", icon: <SupervisedUserCircle /> },
-  { label: "Tutors", href: "/admin/tutors", icon: <SchoolOutlinedIcon /> },
-  { label: "Admins", href: "/admin/admins", icon: <AdminPanelSettingsOutlinedIcon /> },
+  { label: "Dashboard", href: "/admin/dashboard", iconPath: "/images/sidebar/admin/dashboard.svg" },
+  { label: "Courses", href: "/admin/courses", iconPath: "/images/sidebar/admin/courses.svg" },
+  { label: "Users", href: "/admin/users", iconPath: "/images/sidebar/admin/users.svg" },
+  { label: "Tutors", href: "/admin/tutors", iconPath: "/images/sidebar/admin/tutors.svg" },
+  { label: "Admins", href: "/admin/admins", iconPath: "/images/sidebar/admin/admins.svg" },
   {
     label: "Emails",
     href: "/admin/emails",
-    icon: <EmailOutlinedIcon />,
+    iconPath: "/images/sidebar/admin/emails.svg",
     children: ADMIN_EMAIL_NAV_ITEMS,
   },
-  { label: "Refunds", href: "/admin/refunds", icon: <WorkspacePremiumOutlinedIcon /> },
-  { label: "Settings", href: "/admin/settings", icon: <SettingsOutlinedIcon /> },
+  { label: "Refunds", href: "/admin/refunds", iconPath: "/images/sidebar/admin/refunds.svg" },
+  { label: "Settings", href: "/admin/settings", iconPath: "/images/sidebar/admin/setttings.svg" },
 ];
 
 const ADMIN_ROUTE_META = [

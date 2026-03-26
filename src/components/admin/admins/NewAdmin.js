@@ -8,18 +8,20 @@ import {
   CardContent,
   Typography,
   TextField,
+  InputAdornment,
   Button,
   Stack,
   Grid,
   FormControl,
   FormHelperText,
-  InputLabel,
   Select,
   MenuItem,
   IconButton,
 } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
-import { greenColor } from "@/utils/Colors";
+import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
+import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
+import { borderColor, greenColor } from "@/utils/Colors";
 import Swal from "sweetalert2";
 import { postJSON, putJSON, getJSON } from "@/utils/http";
 import * as Yup from "yup";
@@ -66,6 +68,7 @@ function NewAdmin({ adminId = null }) {
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Load admin data when in edit mode
   useEffect(() => {
@@ -238,19 +241,21 @@ function NewAdmin({ adminId = null }) {
         </Stack>
 
         {/* Form */}
-        <Card>
-          <CardContent>
-            <Stack spacing={3} sx={{ mt: 2 }}>
+        <Box sx={{ border: `1px solid ${borderColor}`, borderRadius: 2, p: 3 }}>
+          <CardContent sx={{ p: 0 }}>
+            <Stack spacing={3}>
               <Grid container spacing={3}>
                 <Grid size={{ xs: 12, md: 6 }}>
+                  <Typography variant="body2" fontWeight={500} mb={1}>
+                    Full Name *
+                  </Typography>
                   <TextField
                     fullWidth
-                    label="Full Name"
+                    placeholder="eg: John Doe"
                     value={adminData.fullName}
                     onChange={handleChange("fullName")}
                     error={Boolean(errors.fullName)}
                     helperText={errors.fullName}
-                    required
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         borderRadius: 2,
@@ -260,15 +265,17 @@ function NewAdmin({ adminId = null }) {
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 6 }}>
+                  <Typography variant="body2" fontWeight={500} mb={1}>
+                    Email *
+                  </Typography>
                   <TextField
                     fullWidth
-                    label="Email"
                     type="email"
+                    placeholder="eg: john.doe@example.com"
                     value={adminData.email}
                     onChange={handleChange("email")}
                     error={Boolean(errors.email)}
                     helperText={errors.email}
-                    required
                     disabled={isEditMode} // Don't allow email change in edit mode
                     sx={{
                       "& .MuiOutlinedInput-root": {
@@ -284,14 +291,22 @@ function NewAdmin({ adminId = null }) {
                   </Typography>
                   <Box
                     sx={{
-                      border: errors.phoneNumber ? "1px solid #d32f2f" : "1px solid #e0e0e0",
+                      border: "1px solid",
+                      borderColor: errors.phoneNumber ? "error.main" : "rgba(0, 0, 0, 0.23)",
                       borderRadius: 2,
+                      minHeight: 56,
+                      display: "flex",
+                      alignItems: "center",
+                      px: 1.75,
+                      transition: "border-color 0.2s ease, box-shadow 0.2s ease",
                       "&:hover": {
-                        borderColor: errors.phoneNumber ? "#d32f2f" : greenColor,
+                        borderColor: errors.phoneNumber ? "error.main" : "text.primary",
                       },
                       "&:focus-within": {
-                        borderColor: greenColor,
-                        borderWidth: "2px",
+                        borderColor: errors.phoneNumber ? "error.main" : "primary.main",
+                        boxShadow: errors.phoneNumber
+                          ? "0 0 0 1px rgba(211, 47, 47, 0.2)"
+                          : "0 0 0 1px rgba(25, 118, 210, 0.2)",
                       },
                     }}
                   >
@@ -311,12 +326,14 @@ function NewAdmin({ adminId = null }) {
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <FormControl fullWidth>
-                    <InputLabel>Status</InputLabel>
+                  <Typography variant="body2" fontWeight={500} mb={1}>
+                    Status *
+                  </Typography>
+                  <FormControl fullWidth error={Boolean(errors.status)}>
                     <Select
                       value={adminData.status}
                       onChange={handleChange("status")}
-                      label="Status"
+                      displayEmpty
                       sx={{
                         borderRadius: 2,
                       }}
@@ -332,15 +349,31 @@ function NewAdmin({ adminId = null }) {
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 6 }}>
+                  <Typography variant="body2" fontWeight={500} mb={1}>
+                    {isEditMode ? "New Password" : "Password"} {!isEditMode ? "*" : ""}
+                  </Typography>
                   <TextField
                     fullWidth
-                    label={isEditMode ? "New Password (leave blank to keep current)" : "Password"}
-                    type="password"
+                    placeholder={isEditMode ? "Leave blank to keep current password" : "Enter password"}
+                    type={showPassword ? "text" : "password"}
                     value={adminData.password}
                     onChange={handleChange("password")}
                     error={Boolean(errors.password)}
                     helperText={errors.password || (isEditMode ? "Leave blank to keep current password" : "")}
                     required={!isEditMode}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            edge="end"
+                            onClick={() => setShowPassword((prev) => !prev)}
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                          >
+                            {showPassword ? <VisibilityOffRoundedIcon /> : <VisibilityRoundedIcon />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         borderRadius: 2,
@@ -351,12 +384,17 @@ function NewAdmin({ adminId = null }) {
               </Grid>
 
               {/* Action Buttons */}
-              <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mt: 3 }}>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={2}
+                justifyContent="flex-end"
+                sx={{ mt: 3 }}
+              >
                 <Button
                   variant="outlined"
                   onClick={() => router.push("/admin/admins")}
                   disabled={isSubmitting}
-                  sx={{ textTransform: "none" }}
+                  sx={{ textTransform: "none", width: { xs: "100%", sm: "auto" } }}
                 >
                   Cancel
                 </Button>
@@ -367,6 +405,7 @@ function NewAdmin({ adminId = null }) {
                   sx={{
                     backgroundColor: greenColor,
                     textTransform: "none",
+                    width: { xs: "100%", sm: "auto" },
                     "&:hover": {
                       backgroundColor: greenColor,
                       opacity: 0.9,
@@ -378,7 +417,7 @@ function NewAdmin({ adminId = null }) {
               </Stack>
             </Stack>
           </CardContent>
-        </Card>
+        </Box>
       </Stack>
     </Box>
   );

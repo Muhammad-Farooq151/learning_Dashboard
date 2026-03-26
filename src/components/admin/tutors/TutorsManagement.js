@@ -27,7 +27,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
-import { bggreen, bgred, borderColor, greenColor } from "@/utils/Colors";
+import { bggreen, bgred, borderColor, greenColor, tableHeaderBg, tableHeaderText } from "@/utils/Colors";
 import { getJSON, deleteJSON } from "@/utils/http";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
@@ -448,9 +448,9 @@ function TutorsManagement() {
                   <TableHead>
                     <TableRow
                       sx={{
-                        backgroundColor: "#1E293B",
+                        backgroundColor: tableHeaderBg,
                         "& th": {
-                          color: "#fff",
+                          color: tableHeaderText,
                           fontWeight: 600,
                           borderBottom: "none",
                           py: 2,

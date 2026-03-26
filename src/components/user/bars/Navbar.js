@@ -26,6 +26,37 @@ import { clearAuthToken } from "@/utils/authStorage";
 import { greenColor, grayColor } from "@/utils/Colors";
 import { getUserRouteMeta, USER_NAV_ITEMS } from "@/components/user/navigation/navConfig";
 
+function UserNavIcon({ src, active }) {
+  return (
+    <Box
+      sx={{
+        width: 22,
+        height: 22,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Box
+        sx={{
+          width: "22px",
+          height: "22px",
+          display: "block",
+          bgcolor: active ? "#FFFFFF" : "#000000",
+          WebkitMaskImage: `url(${src})`,
+          WebkitMaskRepeat: "no-repeat",
+          WebkitMaskPosition: "center",
+          WebkitMaskSize: "contain",
+          maskImage: `url(${src})`,
+          maskRepeat: "no-repeat",
+          maskPosition: "center",
+          maskSize: "contain",
+        }}
+      />
+    </Box>
+  );
+}
+
 function MobileNavItem({ item, active, onNavigate }) {
   return (
     <ListItemButton
@@ -46,7 +77,9 @@ function MobileNavItem({ item, active, onNavigate }) {
         },
       }}
     >
-      <ListItemIcon>{item.icon}</ListItemIcon>
+      <ListItemIcon>
+        <UserNavIcon src={item.iconPath} active={active} />
+      </ListItemIcon>
       <ListItemText
         primary={
           <Typography fontSize="0.95rem" fontWeight={active ? 700 : 500}>
