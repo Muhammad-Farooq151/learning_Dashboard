@@ -39,12 +39,9 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import ImageIcon from "@mui/icons-material/Image";
-import { useRouter } from "next/navigation";
 import { greenColor } from "@/components/utils/Colors";
 import Link from "next/link";
-import { getJSON, postJSON } from "@/utils/http";
-import { getStoredUserId } from "@/utils/authStorage";
-import { connectSocket, disconnectSocket, getSocket } from "@/utils/socket";
+import { getJSON } from "@/utils/http";
 
 // Helper function to format duration from seconds to "X Minutes" or "X Hours Y Minutes"
 const formatDuration = (seconds) => {
@@ -62,344 +59,21 @@ const formatDuration = (seconds) => {
   return `${secs} ${secs === 1 ? "Second" : "Seconds"}`;
 };
 
-// Helper function to format duration as HH:MM:SS
-const formatDurationTime = (seconds) => {
-  if (!seconds) return "00:00";
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  
-  if (hours > 0) {
-    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  }
-  return `${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-};
-
-const buildWatchedSegmentsFromRanges = (watchedRanges = []) => {
-  const watchedSegments = new Set();
-
-  watchedRanges.forEach((range) => {
-    const start = Number.isFinite(range?.start) ? Math.floor(range.start) : null;
-    const end = Number.isFinite(range?.end) ? Math.floor(range.end) : null;
-
-    if (start === null || end === null || end < start) return;
-
-    for (let i = start; i <= end; i += 1) {
-      watchedSegments.add(i);
-    }
-  });
-
-  return watchedSegments;
-};
-
-const getLessonRealtimeSnapshot = (lessonId, durationSeconds, progressState, watchedSegmentsRef) => {
-  const savedProgress = progressState?.[lessonId] || {};
-  const maxSecond = Math.max(0, Math.floor(durationSeconds || 0));
-  const persistedSegments =
-    savedProgress.watchedRanges?.length > 0
-      ? buildWatchedSegmentsFromRanges(savedProgress.watchedRanges)
-      : null;
-  const persistedWatchedSeconds = persistedSegments
-    ? Array.from(persistedSegments).filter((second) => second >= 0 && second <= maxSecond).length
-    : Math.min(savedProgress.watchedSeconds || 0, durationSeconds || savedProgress.watchedSeconds || 0);
-  const liveWatchedSegments = watchedSegmentsRef.current.get(lessonId);
-  const liveWatchedSeconds = liveWatchedSegments
-    ? Array.from(liveWatchedSegments).filter((second) => second >= 0 && second <= maxSecond).length
-    : 0;
-  const watchedSeconds = Math.max(persistedWatchedSeconds, liveWatchedSeconds);
-  const reachedCompletionThreshold = durationSeconds > 0 && watchedSeconds >= durationSeconds * 0.9;
-  const completed = Boolean(savedProgress.completed || reachedCompletionThreshold);
-  const progressPercent =
-    durationSeconds > 0 ? Math.min(100, Math.round((watchedSeconds / durationSeconds) * 100)) : 0;
-
-  return {
-    watched: Math.min(savedProgress.watched || 0, durationSeconds || savedProgress.watched || 0),
-    watchedSeconds,
-    completed,
-    watchedRanges: savedProgress.watchedRanges || [],
-    progressPercent: completed && reachedCompletionThreshold ? 100 : progressPercent,
-  };
-};
+/** Progress / Socket.io tracking disabled — zeroed UI until re-enabled */
+const noTrackingSnapshot = () => ({
+  watched: 0,
+  watchedSeconds: 0,
+  completed: false,
+  watchedRanges: [],
+  progressPercent: 0,
+});
 
 function CourseLearningPage({ courseId, course }) {
-  const router = useRouter();
   const [tab, setTab] = useState("course-material");
   const [expandedSections, setExpandedSections] = useState({ 0: true });
   const [selectedLesson, setSelectedLesson] = useState(null);
-  const [lessonProgress, setLessonProgress] = useState({}); // { lessonId: { watched: seconds, watchedSeconds: number, completed: boolean, watchedRanges: [] } }
-  const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
-  const [socket, setSocket] = useState(null);
-  const [socketConnected, setSocketConnected] = useState(false);
-  const [progressUpdateTrigger, setProgressUpdateTrigger] = useState(0); // Force re-render for progress
-  
-  // SCORM-style watched segments tracking (Set of watched seconds)
-  const watchedSegmentsRef = useRef(new Map()); // { lessonId: Set<seconds> }
-  const lastTimeRef = useRef(new Map()); // { lessonId: lastTime } for skip detection
-  const selectedLessonRef = useRef(null);
-  const lessonProgressRef = useRef(lessonProgress);
-  const currentVideoTimeRef = useRef(currentVideoTime);
-
-  useEffect(() => {
-    selectedLessonRef.current = selectedLesson;
-  }, [selectedLesson]);
-
-  useEffect(() => {
-    lessonProgressRef.current = lessonProgress;
-  }, [lessonProgress]);
-
-  useEffect(() => {
-    currentVideoTimeRef.current = currentVideoTime;
-  }, [currentVideoTime]);
-  
-  // Initialize Socket.io connection
-  useEffect(() => {
-    const socketInstance = connectSocket();
-    setSocket(socketInstance);
-
-    console.log('[Socket.io] Initializing connection...');
-
-    const handleConnect = () => {
-      setSocketConnected(true);
-      console.log('[Socket.io] ✅ Connected to server');
-    };
-
-    const handleDisconnect = () => {
-      setSocketConnected(false);
-      console.log('[Socket.io] ❌ Disconnected from server');
-    };
-
-    // Save progress before page unload/reload
-    const handleBeforeUnload = () => {
-      const activeLesson = selectedLessonRef.current;
-      if (activeLesson?.id && socketInstance && socketInstance.connected && videoRef.current) {
-        const video = videoRef.current;
-        const currentTime = video.currentTime || 0;
-        const totalDuration = activeLesson.durationSeconds || 0;
-        const watchedSegments = watchedSegmentsRef.current.get(activeLesson.id) || new Set();
-        
-        console.log('[Socket.io] Saving progress before page unload:', {
-          lessonId: activeLesson.id,
-          currentTime: Math.floor(currentTime),
-        });
-        
-        socketInstance.emit('video:progress', {
-          courseId,
-          lessonId: activeLesson.id,
-          currentTime: Math.floor(currentTime),
-          videoDuration: totalDuration,
-          isPlaying: false, // Pause to trigger immediate save
-          watchedSegments: Array.from(watchedSegments),
-          watchedSegmentsCount: watchedSegments.size,
-        });
-      }
-    };
-
-    socketInstance.on('connect', handleConnect);
-    socketInstance.on('disconnect', handleDisconnect);
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('pagehide', handleBeforeUnload);
-
-    // Handle socket events - REAL progress from watchedRanges
-    socketInstance.on('video:progress:saved', (data) => {
-      console.log('[Socket.io] ✅ Progress saved with ranges:', {
-        lessonId: data.lessonId,
-        watched: data.watched,
-        watchedSeconds: data.watchedSeconds,
-        completed: data.completed,
-        progressPercent: data.progressPercent,
-      });
-      
-      // Update for any lesson (not just selectedLesson) to handle multiple lessons
-      if (data.lessonId) {
-        // Use resumeTime if available (from watchedRanges), otherwise use watched
-        const resumeTime = data.resumeTime !== undefined ? data.resumeTime : (data.watched || 0);
-        
-        // Restore watched segments from server response if available
-        // This ensures segments are synced with server (SCORM-style)
-        if (data.watchedRanges && Array.isArray(data.watchedRanges)) {
-          watchedSegmentsRef.current.set(
-            data.lessonId,
-            buildWatchedSegmentsFromRanges(data.watchedRanges)
-          );
-        }
-        
-        setLessonProgress((prev) => {
-          const updated = {
-            ...prev,
-            [data.lessonId]: {
-              watched: resumeTime, // Resume position
-              watchedSeconds: data.watchedSeconds || 0, // REAL progress from ranges
-              completed: data.completed || false,
-              resumeTime: resumeTime,
-              watchedRanges: data.watchedRanges || prev[data.lessonId]?.watchedRanges || [],
-            },
-          };
-          
-          // Also update localStorage as backup
-          if (courseId) {
-            localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(updated));
-          }
-          
-          // If this is the currently selected lesson, update UI
-          if (selectedLessonRef.current?.id === data.lessonId) {
-            setCurrentVideoTime(resumeTime);
-            // Force re-render of progress bar
-            setProgressUpdateTrigger((prev) => prev + 1);
-          }
-          
-          return updated;
-        });
-      }
-    });
-
-    socketInstance.on('video:progress:warning', (data) => {
-      console.warn('[Socket.io] ⚠️ Progress warning:', data);
-    });
-
-    socketInstance.on('video:progress:error', (error) => {
-      console.error('[Socket.io] ❌ Progress error:', error);
-    });
-
-    socketInstance.on('video:ended:saved', (data) => {
-      console.log('[Socket.io] ✅ Video ended saved:', data);
-      if (data?.lessonId && data.success) {
-        if (data.watchedRanges && Array.isArray(data.watchedRanges)) {
-          watchedSegmentsRef.current.set(
-            data.lessonId,
-            buildWatchedSegmentsFromRanges(data.watchedRanges)
-          );
-        }
-
-        const resumeTime = data.resumeTime !== undefined ? data.resumeTime : (data.watched || 0);
-
-        setLessonProgress((prev) => {
-          const updated = {
-            ...prev,
-            [data.lessonId]: {
-              watched: resumeTime,
-              watchedSeconds: data.watchedSeconds || prev[data.lessonId]?.watchedSeconds || 0,
-              completed: data.completed || false,
-              resumeTime,
-              watchedRanges: data.watchedRanges || prev[data.lessonId]?.watchedRanges || [],
-            },
-          };
-
-          if (courseId) {
-            localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(updated));
-          }
-
-          return updated;
-        });
-
-        if (selectedLessonRef.current?.id === data.lessonId) {
-          setCurrentVideoTime(resumeTime);
-          setProgressUpdateTrigger((prev) => prev + 1);
-        }
-      }
-    });
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('pagehide', handleBeforeUnload);
-      socketInstance.off('connect', handleConnect);
-      socketInstance.off('disconnect', handleDisconnect);
-      socketInstance.off('video:progress:saved');
-      socketInstance.off('video:progress:warning');
-      socketInstance.off('video:progress:error');
-      socketInstance.off('video:ended:saved');
-      console.log('[Socket.io] Cleaning up connection...');
-      disconnectSocket();
-    };
-  }, [courseId]);
-
-  // Initialize currentVideoTime when lesson is selected - reload from database
-  useEffect(() => {
-    const activeLesson = selectedLessonRef.current;
-
-    if (activeLesson?.id) {
-      // Reload progress from database when lesson is selected to get latest data
-      const loadLessonProgress = async () => {
-        const userId = getStoredUserId();
-        if (userId && courseId) {
-          try {
-            const response = await getJSON(`progress/${courseId}?userId=${userId}`);
-            if (response?.success && response.data?.lessons) {
-              const lessonProgressData = response.data.lessons.find(
-                l => l.lessonId?.toString() === activeLesson.id
-              );
-              
-              if (lessonProgressData) {
-                const savedTime = lessonProgressData.watched || 0;
-                const watchedRanges = lessonProgressData.watchedRanges || [];
-                
-                // Restore watched segments from watchedRanges (SCORM-style)
-                const watchedSegments = buildWatchedSegmentsFromRanges(watchedRanges);
-                watchedSegmentsRef.current.set(activeLesson.id, watchedSegments);
-                lastTimeRef.current.set(activeLesson.id, savedTime);
-                
-                setCurrentVideoTime(savedTime);
-                
-                // Update lessonProgress state with latest data
-                setLessonProgress((prev) => ({
-                  ...prev,
-                  [activeLesson.id]: {
-                    watched: savedTime,
-                    watchedSeconds: lessonProgressData.watchedSeconds || 0,
-                    completed: lessonProgressData.completed || false,
-                    watchedRanges: watchedRanges,
-                  },
-                }));
-                
-                console.log('[Progress] Loaded and initialized video time and segments for lesson:', {
-                  lessonId: activeLesson.id,
-                  savedTime,
-                  completed: lessonProgressData.completed,
-                  watchedSegmentsCount: watchedSegments.size,
-                  watchedRangesCount: watchedRanges.length,
-                });
-              } else {
-                setCurrentVideoTime(0);
-                // Initialize empty segments for new lesson
-                watchedSegmentsRef.current.set(activeLesson.id, new Set());
-                lastTimeRef.current.set(activeLesson.id, 0);
-              }
-            }
-          } catch (error) {
-            console.error('[Progress] Error loading lesson progress:', error);
-            // Fallback to existing progress
-            const savedProgress = lessonProgressRef.current[activeLesson.id];
-            if (savedProgress) {
-              setCurrentVideoTime(savedProgress.watched || 0);
-            } else {
-              setCurrentVideoTime(0);
-            }
-          }
-        } else {
-          // Fallback to existing progress
-          const savedProgress = lessonProgressRef.current[activeLesson.id];
-          if (savedProgress) {
-            setCurrentVideoTime(savedProgress.watched || 0);
-          } else {
-            setCurrentVideoTime(0);
-          }
-        }
-      };
-      
-      loadLessonProgress();
-    } else {
-      setCurrentVideoTime(0);
-    }
-  }, [selectedLesson?.id, courseId]);
-
-  // Force progress bar update when currentVideoTime changes
-  useEffect(() => {
-    if (selectedLesson?.id && currentVideoTime >= 0) {
-      setProgressUpdateTrigger((prev) => prev + 1);
-    }
-  }, [currentVideoTime, selectedLesson?.id]);
 
   // Load reviews when reviews tab is selected
   useEffect(() => {
@@ -425,86 +99,16 @@ function CourseLearningPage({ courseId, course }) {
     loadReviews();
   }, [tab, courseId]);
 
-  // Load progress from database on mount
-  useEffect(() => {
-    const loadProgress = async () => {
-      if (!courseId) return;
-      
-      const userId = getStoredUserId();
-      if (!userId) return;
-
-      try {
-        const response = await getJSON(`progress/${courseId}?userId=${userId}`);
-        if (response?.success && response.data) {
-          const progressData = response.data;
-          // Convert progress data to lessonProgress format
-          const progressMap = {};
-          if (progressData.lessons && Array.isArray(progressData.lessons)) {
-            progressData.lessons.forEach((lesson) => {
-              // Convert lessonId to string for consistent matching
-              const lessonIdStr = lesson.lessonId?.toString() || lesson.lessonId;
-              
-              // Use resumeTime if available (from watchedRanges), otherwise use watched
-              const resumeTime = lesson.resumeTime !== undefined ? lesson.resumeTime : (lesson.watched || 0);
-              
-              // Calculate watchedSeconds from watchedRanges if available
-              const watchedSeconds = lesson.watchedSeconds || 0;
-              const watchedRanges = lesson.watchedRanges || [];
-              
-              // Restore watched segments from watchedRanges (SCORM-style)
-              const watchedSegments = buildWatchedSegmentsFromRanges(watchedRanges);
-              watchedSegmentsRef.current.set(lessonIdStr, watchedSegments);
-              
-              progressMap[lessonIdStr] = {
-                watched: resumeTime, // Use resumeTime for resume position
-                watchedSeconds: watchedSeconds,
-                completed: lesson.completed || false,
-                resumeTime: resumeTime,
-                watchedRanges: watchedRanges, // Store ranges for reference
-              };
-            });
-          }
-          setLessonProgress(progressMap);
-          console.log('[Progress] Loaded from database with ranges:', progressMap);
-        }
-      } catch (error) {
-        console.error("Error loading progress from database:", error);
-        // Fallback to localStorage if API fails
-        const savedProgress = localStorage.getItem(`course_progress_${courseId}`);
-        if (savedProgress) {
-          try {
-            setLessonProgress(JSON.parse(savedProgress));
-          } catch (e) {
-            console.error("Error loading progress from localStorage:", e);
-          }
-        }
-      }
-    };
-
-    loadProgress();
-  }, [courseId]);
-
-  // Note: Progress saving is now handled via Socket.io in the video tracking useEffect
-  // No need for direct API calls anymore
-
-  // Transform API lessons data into curriculum format
+  // Transform API lessons data into curriculum format (progress tracking disabled)
   const curriculum = useMemo(() => {
-    void progressUpdateTrigger;
     if (!course?.fullData?.lessons || !Array.isArray(course.fullData.lessons)) {
       return { sections: [] };
     }
 
-    // Group lessons into a single section (or you can group by category if needed)
     const lessons = course.fullData.lessons.map((lesson, index) => {
-      // Convert lessonId to string for consistent matching with progress data
       const lessonId = lesson._id ? lesson._id.toString() : index.toString();
       const lessonDuration = lesson.duration || 0;
-      const progress = getLessonRealtimeSnapshot(
-        lessonId,
-        lessonDuration,
-        lessonProgress,
-        watchedSegmentsRef
-      );
+      const progress = noTrackingSnapshot();
       
       return {
         id: lessonId,
@@ -537,7 +141,7 @@ function CourseLearningPage({ courseId, course }) {
         },
       ],
     };
-  }, [course, lessonProgress, progressUpdateTrigger]);
+  }, [course]);
 
   const totalLessons = useMemo(
     () => curriculum.sections.reduce((sum, section) => sum + section.lessons.length, 0),
@@ -550,49 +154,10 @@ function CourseLearningPage({ courseId, course }) {
   );
 
   const selectedLessonId = selectedLesson?.id || null;
-  const selectedLessonDurationSeconds = selectedLesson?.durationSeconds || 0;
 
-  const selectedLessonProgress = useMemo(() => {
-    void progressUpdateTrigger;
+  const selectedLessonProgress = useMemo(() => noTrackingSnapshot(), [selectedLessonId]);
 
-    if (!selectedLessonId) {
-      return { watched: 0, watchedSeconds: 0, completed: false, progressPercent: 0 };
-    }
-
-    return getLessonRealtimeSnapshot(
-      selectedLessonId,
-      selectedLessonDurationSeconds,
-      lessonProgress,
-      watchedSegmentsRef
-    );
-  }, [
-    selectedLessonId,
-    selectedLessonDurationSeconds,
-    lessonProgress,
-    progressUpdateTrigger,
-  ]);
-
-  // Calculate overall course progress from combined lesson watch progress
-  const courseProgress = useMemo(() => {
-    if (!curriculum.sections.length || !totalLessons) return 0;
-    const allLessons = curriculum.sections.flatMap((s) => s.lessons);
-    const totalDuration = allLessons.reduce(
-      (sum, lesson) => sum + (lesson.durationSeconds || 0),
-      0
-    );
-
-    if (!totalDuration) return 0;
-
-    const totalWatchedSeconds = allLessons.reduce((sum, lesson) => {
-      const watchedSeconds = Math.min(
-        lesson.watchedSeconds || 0,
-        lesson.durationSeconds || 0
-      );
-      return sum + watchedSeconds;
-    }, 0);
-
-    return Math.min(100, Math.round((totalWatchedSeconds / totalDuration) * 100));
-  }, [curriculum, totalLessons]);
+  const courseProgress = 0;
 
   // Video ref for tracking
   const videoRef = useRef(null);
@@ -621,96 +186,8 @@ function CourseLearningPage({ courseId, course }) {
     });
   };
 
-  const closeLessonDialog = async () => {
-    // SCORM-style: Save progress before closing dialog
-    // IMPORTANT: Do NOT reset watchedSegments on close (they persist in ref)
-    // This ensures already watched parts are remembered
-    if (selectedLesson?.id) {
-      const video = videoRef.current;
-      let currentTime = 0;
-      let timeInSeconds = 0;
-      
-      // Get current time from video element if available
-      if (video && video.readyState >= 2) {
-        currentTime = video.currentTime || 0;
-        timeInSeconds = Math.floor(currentTime);
-      } else {
-        // Fallback to state if video not ready
-        timeInSeconds = Math.floor(currentVideoTime);
-        currentTime = currentVideoTime;
-      }
-      
-      // Get watched segments count (SCORM-style - REAL progress)
-      const watchedSegments = watchedSegmentsRef.current.get(selectedLesson.id) || new Set();
-      const watchedSecondsCount = watchedSegments.size;
-      
-      const totalDuration = selectedLesson.durationSeconds || 0;
-      // Calculate progress from watched segments (not currentTime - prevents fake progress)
-      const progressPercent = totalDuration > 0 
-        ? Math.round((watchedSecondsCount / totalDuration) * 100) 
-        : 0;
-      const isCompleted = progressPercent >= 90 || (lessonProgress[selectedLesson.id]?.completed || false);
-      
-      console.log('[Dialog Close] Calculating and saving progress (SCORM-style):', {
-        lessonId: selectedLesson.id,
-        currentTime: currentTime.toFixed(2),
-        timeInSeconds,
-        watchedSegmentsCount: watchedSecondsCount,
-        totalDuration,
-        progressPercent,
-        isCompleted,
-      });
-      
-      setLessonProgress((prev) => {
-        const updated = {
-          ...prev,
-          [selectedLesson.id]: {
-            watched: timeInSeconds,
-            watchedSeconds: Math.max(prev[selectedLesson.id]?.watchedSeconds || 0, watchedSecondsCount),
-            completed: isCompleted,
-            watchedRanges: prev[selectedLesson.id]?.watchedRanges || [],
-          },
-        };
-        if (courseId) {
-          localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(updated));
-        }
-        return updated;
-      });
-
-      if (socketConnected && socket) {
-        const watchedSegments = watchedSegmentsRef.current.get(selectedLesson.id) || new Set();
-        socket.emit('video:progress', {
-          courseId,
-          lessonId: selectedLesson.id,
-          currentTime: timeInSeconds,
-          videoDuration: totalDuration,
-          isPlaying: false,
-          watchedSegments: Array.from(watchedSegments), // Send watched segments (SCORM-style)
-          watchedSegmentsCount: watchedSegments.size,
-        });
-      } else {
-        const userId = getStoredUserId();
-        if (userId && courseId && selectedLesson.id) {
-          try {
-            await postJSON('progress/update', {
-              userId,
-              courseId,
-              lessonId: selectedLesson.id,
-              watched: timeInSeconds,
-              completed: isCompleted,
-            });
-          } catch (error) {
-            console.error('[API] ❌ Error saving progress on dialog close fallback:', error);
-          }
-        }
-      }
-    }
-    
-    // SCORM-style: Close dialog WITHOUT resetting state
-    // watchedSegments persist in ref (like SCORM suspend_data)
-    // This ensures already watched parts are remembered on reopen
+  const closeLessonDialog = () => {
     setSelectedLesson(null);
-    // Note: watchedSegmentsRef and lastTimeRef are NOT cleared - they persist
   };
 
   // Get current lesson index and next/previous lessons
@@ -744,375 +221,6 @@ function CourseLearningPage({ courseId, course }) {
       setSelectedLesson(previousLesson);
     }
   };
-
-  // Video event handlers with Socket.io
-  useEffect(() => {
-    const activeLesson = selectedLessonRef.current;
-
-    if (!activeLesson || !socket) {
-      if (!activeLesson) setCurrentVideoTime(0);
-      return;
-    }
-
-    let progressInterval = null;
-
-    // Wait a bit for video element to mount
-    const setupTracking = () => {
-      const video = videoRef.current;
-      if (!video) {
-        console.warn("Video element not found, retrying...");
-        setTimeout(setupTracking, 100);
-        return;
-      }
-
-      console.log("[Socket.io] Setting up video tracking for lesson:", activeLesson.id);
-
-      // Initialize currentVideoTime (don't set video.currentTime here - let loadedmetadata handle it)
-      if (activeLesson.id && lessonProgressRef.current[activeLesson.id]) {
-        const savedTime = lessonProgressRef.current[activeLesson.id].watched || 0;
-        setCurrentVideoTime(savedTime);
-      } else {
-        setCurrentVideoTime(0);
-      }
-
-      const handleTimeUpdate = () => {
-        if (!video || !activeLesson.id) return;
-        
-        const currentTime = video.currentTime || 0;
-        const timeInSeconds = Math.floor(currentTime);
-        const totalDuration = activeLesson.durationSeconds || 0;
-        
-        // SCORM-style watched segments tracking
-        // Get or create watched segments Set for this lesson
-        if (!watchedSegmentsRef.current.has(activeLesson.id)) {
-          watchedSegmentsRef.current.set(activeLesson.id, new Set());
-        }
-        const watchedSegments = watchedSegmentsRef.current.get(activeLesson.id);
-        
-        // Get last time for skip detection (SCORM-style)
-        const lastTime = lastTimeRef.current.get(activeLesson.id) || 0;
-        
-        // SCORM-style skip detection: Only add if normal progression (not a seek)
-        // If current - lastTime <= 1.5, it's normal playback (add to watched)
-        // If current - lastTime > 1.5, it's a seek (skip, don't add)
-        const timeDiff = currentTime - lastTime;
-        const isNormalPlayback = timeDiff <= 1.5 || lastTime === 0; // Allow first second or normal progression
-        
-        // Only add to watched segments if normal playback (not seeking)
-        // This prevents fake progress from dragging to end
-        if (isNormalPlayback && timeInSeconds >= 0 && timeInSeconds <= totalDuration) {
-          // Add current second to watched segments (SCORM-style)
-          watchedSegments.add(timeInSeconds);
-          
-          // Also add previous second if we're in the middle of it (for smooth tracking)
-          if (currentTime - timeInSeconds > 0.5 && timeInSeconds > 0) {
-            watchedSegments.add(timeInSeconds - 1);
-          }
-        }
-        
-        // Update last time (always, even if seeking, for next comparison)
-        lastTimeRef.current.set(activeLesson.id, currentTime);
-        
-        // Calculate real progress from watched segments (SCORM-style)
-        const watchedSecondsCount = watchedSegments.size;
-        const realProgressPercent = totalDuration > 0 
-          ? Math.min(100, Math.round((watchedSecondsCount / totalDuration) * 100))
-          : 0;
-        
-        // Always update UI in real-time (this is what user sees in dialog progress bar)
-        const timeDiffUI = Math.abs(currentTime - currentVideoTimeRef.current);
-        if (timeDiffUI >= 0.25) {
-          setCurrentVideoTime(currentTime);
-          setProgressUpdateTrigger((prev) => prev + 1);
-        }
-        
-        // Update lessonProgress with REAL progress from segments
-        setLessonProgress((prev) => {
-          const prevWatched = prev[activeLesson.id]?.watched || 0;
-          const prevWatchedSeconds = prev[activeLesson.id]?.watchedSeconds || 0;
-          
-          // Use watched segments count as watchedSeconds (REAL progress)
-          const newWatchedSeconds = Math.max(prevWatchedSeconds, watchedSecondsCount);
-          
-          if (timeInSeconds >= prevWatched || timeInSeconds > 0) {
-            const newProgress = {
-              ...prev,
-              [activeLesson.id]: { 
-                watched: timeInSeconds, // Resume position
-                watchedSeconds: newWatchedSeconds, // REAL progress from segments
-                completed: prev[activeLesson.id]?.completed || (realProgressPercent >= 90)
-              },
-            };
-            // Update localStorage as backup
-            if (courseId) {
-              localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(newProgress));
-            }
-            return newProgress;
-          }
-          return prev;
-        });
-        
-        // Debug log (remove in production)
-        if (timeInSeconds % 5 === 0) { // Log every 5 seconds to avoid spam
-          console.log('[Video] Real-time update (SCORM-style):', {
-            currentTime: currentTime.toFixed(2),
-            timeInSeconds,
-            watchedSegmentsCount: watchedSegments.size,
-            realProgressPercent,
-            totalDuration,
-            isNormalPlayback,
-          });
-        }
-      };
-
-      const handlePlay = async () => {
-        if (video && activeLesson.id) {
-          const currentTime = video.currentTime || 0;
-          const timeInSeconds = Math.floor(currentTime);
-          setCurrentVideoTime(timeInSeconds);
-        }
-      };
-
-      const handleEnded = async () => {
-        if (activeLesson.id) {
-          const totalDuration = activeLesson.durationSeconds || 0;
-          const watchedSegments = watchedSegmentsRef.current.get(activeLesson.id) || new Set();
-          const watchedSecondsCount = watchedSegments.size;
-          const realProgressPercent = totalDuration > 0
-            ? Math.min(100, Math.round((watchedSecondsCount / totalDuration) * 100))
-            : 0;
-          const isCompleted = realProgressPercent >= 90;
-
-          setCurrentVideoTime(totalDuration);
-          
-          // Update local state immediately first (for instant UI update)
-          setLessonProgress((prev) => {
-            const newProgress = {
-              ...prev,
-              [activeLesson.id]: { 
-                watched: totalDuration, 
-                watchedSeconds: Math.max(prev[activeLesson.id]?.watchedSeconds || 0, watchedSecondsCount),
-                completed: prev[activeLesson.id]?.completed || isCompleted,
-                watchedRanges: prev[activeLesson.id]?.watchedRanges || [],
-              },
-            };
-            // Save to localStorage as backup
-            if (courseId) {
-              localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(newProgress));
-            }
-            return newProgress;
-          });
-          
-          // Also send via Socket.io (backup)
-          if (socketConnected && socket) {
-            socket.emit('video:ended', {
-              courseId,
-              lessonId: activeLesson.id,
-              videoDuration: totalDuration,
-              watchedSegments: Array.from(watchedSegments),
-            });
-          } else {
-            const userId = getStoredUserId();
-            if (userId && courseId && activeLesson.id) {
-              try {
-                await postJSON('progress/update', {
-                  userId,
-                  courseId,
-                  lessonId: activeLesson.id,
-                  watched: totalDuration,
-                  completed: isCompleted,
-                });
-              } catch (error) {
-                console.error('[API] ❌ Error saving progress on video end fallback:', error);
-              }
-            }
-          }
-        }
-      };
-
-      const handlePause = async () => {
-        if (activeLesson.id && video) {
-          const currentTime = video.currentTime || 0;
-          const timeInSeconds = Math.floor(currentTime);
-          const totalDuration = activeLesson.durationSeconds || 0;
-          const watchedSegments = watchedSegmentsRef.current.get(activeLesson.id) || new Set();
-          const watchedSecondsCount = watchedSegments.size;
-          const realProgressPercent = totalDuration > 0
-            ? Math.min(100, Math.round((watchedSecondsCount / totalDuration) * 100))
-            : 0;
-          const isCompleted = realProgressPercent >= 90;
-
-          if (socketConnected && socket) {
-            socket.emit('video:progress', {
-              courseId,
-              lessonId: activeLesson.id,
-              currentTime: timeInSeconds,
-              videoDuration: totalDuration,
-              isPlaying: false,
-              watchedSegments: Array.from(watchedSegments), // Send watched segments (SCORM-style)
-              watchedSegmentsCount: watchedSegments.size,
-            });
-          } else {
-            const userId = getStoredUserId();
-            if (userId && courseId && activeLesson.id) {
-              try {
-                await postJSON('progress/update', {
-                  userId,
-                  courseId,
-                  lessonId: activeLesson.id,
-                  watched: timeInSeconds,
-                  completed: isCompleted,
-                });
-              } catch (error) {
-                console.error('[API] ❌ Error saving progress on pause fallback:', error);
-              }
-            }
-          }
-        }
-      };
-
-      const handleLoadedMetadata = () => {
-        if (!video || !activeLesson.id) return;
-        
-        // Reload progress from state to ensure latest data
-        const savedProgress = lessonProgressRef.current[activeLesson.id];
-        if (!savedProgress) {
-          console.log('[Video] No saved progress found');
-          return;
-        }
-        
-        const savedTime = savedProgress.watched || 0;
-        const totalDuration = activeLesson.durationSeconds || 0;
-        
-        console.log('[Video] Metadata loaded, restoring position:', {
-          lessonId: activeLesson.id,
-          savedTime,
-          totalDuration,
-          completed: savedProgress.completed,
-          videoReadyState: video.readyState,
-          videoDuration: video.duration,
-        });
-        
-        // Wait for video to be ready
-        const restorePosition = () => {
-          if (!video || video.readyState < 2) {
-            setTimeout(restorePosition, 100);
-            return;
-          }
-          
-          if (savedProgress.completed && totalDuration > 0) {
-            // Video is completed - set to end
-            const endTime = Math.min(totalDuration, video.duration || totalDuration);
-            setCurrentVideoTime(endTime);
-            video.currentTime = endTime;
-            console.log('[Video] Position restored to end (completed):', endTime);
-          } else if (savedTime > 0 && totalDuration > 0) {
-            // Restore saved position (don't set to exact end to allow continuation)
-            const restoreTime = Math.min(savedTime, totalDuration - 1, (video.duration || totalDuration) - 1);
-            video.currentTime = restoreTime;
-            setCurrentVideoTime(restoreTime);
-            console.log('[Video] Position restored to:', restoreTime, 'of', totalDuration);
-          } else {
-            // No saved progress, start from beginning
-            video.currentTime = 0;
-            setCurrentVideoTime(0);
-            console.log('[Video] Starting from beginning');
-          }
-        };
-        
-        // Try to restore immediately, or wait a bit
-        if (video.readyState >= 2) {
-          setTimeout(restorePosition, 100);
-        } else {
-          video.addEventListener('canplay', restorePosition, { once: true });
-        }
-      };
-
-      // Add event listeners
-      video.addEventListener("timeupdate", handleTimeUpdate);
-      video.addEventListener("play", handlePlay);
-      video.addEventListener("playing", handlePlay);
-      video.addEventListener("ended", handleEnded);
-      video.addEventListener("pause", handlePause);
-      video.addEventListener("loadedmetadata", handleLoadedMetadata);
-      
-      // Save progress via Socket.io when video is playing (every 1 second)
-      // API calls only on pause/end/close for reliability
-      progressInterval = setInterval(() => {
-        if (video && !video.paused && activeLesson.id) {
-          const savedProgress = lessonProgressRef.current[activeLesson.id];
-          
-          // Don't send if already complete
-          if (savedProgress?.completed) {
-            return;
-          }
-          
-          const currentTime = video.currentTime || 0;
-          const totalDuration = activeLesson.durationSeconds || 0;
-          
-          // Get watched segments for this lesson (SCORM-style)
-          const watchedSegments = watchedSegmentsRef.current.get(activeLesson.id) || new Set();
-          
-          // Send via Socket.io (primary method for real-time updates)
-          // Include watched segments array for server-side tracking (Cloudinary + Socket.io)
-          if (socketConnected && socket) {
-            socket.emit('video:progress', {
-              courseId,
-              lessonId: activeLesson.id,
-              currentTime: currentTime, // Send actual currentTime (not floored) for accuracy
-              videoDuration: totalDuration,
-              isPlaying: true,
-              watchedSegments: Array.from(watchedSegments), // Send watched seconds array (SCORM-style)
-              watchedSegmentsCount: watchedSegments.size, // Send segments count for validation
-            });
-          } else {
-            // If socket not connected, try to reconnect
-            console.warn('[Socket.io] Socket not connected, attempting to reconnect...');
-            const newSocket = connectSocket();
-            setSocket(newSocket);
-          }
-        } else {
-          // Debug: log why not sending
-          if (!activeLesson.id) console.warn('[Progress] No lesson selected');
-          else if (video?.paused) console.log('[Progress] Video paused, not saving');
-        }
-      }, 1000); // Send every 1 second when playing
-
-      // Return cleanup function
-      return () => {
-        video.removeEventListener("timeupdate", handleTimeUpdate);
-        video.removeEventListener("play", handlePlay);
-        video.removeEventListener("playing", handlePlay);
-        video.removeEventListener("ended", handleEnded);
-        video.removeEventListener("pause", handlePause);
-        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
-        if (progressInterval) clearInterval(progressInterval);
-        
-        // Send final pause event on cleanup - include watched segments
-        if (activeLesson.id && video && socketConnected && socket) {
-          const currentTime = video.currentTime || 0;
-          const totalDuration = activeLesson.durationSeconds || 0;
-          const watchedSegments = watchedSegmentsRef.current.get(activeLesson.id) || new Set();
-          
-          socket.emit('video:progress', {
-            courseId,
-            lessonId: activeLesson.id,
-            currentTime: Math.floor(currentTime),
-            videoDuration: totalDuration,
-            isPlaying: false,
-            watchedSegments: Array.from(watchedSegments), // Send watched segments (SCORM-style)
-            watchedSegmentsCount: watchedSegments.size,
-          });
-        }
-      };
-    };
-
-    const timeoutId = setTimeout(setupTracking, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [selectedLesson?.id, courseId, socket, socketConnected]); // Removed lessonProgress from dependencies to prevent re-runs
 
   if (!course) {
     return (
@@ -1831,61 +939,69 @@ function CourseLearningPage({ courseId, course }) {
             </DialogTitle>
             <DialogContent dividers sx={{ p: 0 }}>
               {selectedLesson.type === "Video" ? (
-                <Box sx={{ position: "relative" }}>
-                  <video
-                    ref={videoRef}
-                    src={selectedLesson.videoUrl}
-                    controls
-                    controlsList="nodownload" // Prevent download (Cloudinary video)
-                    disablePictureInPicture // Disable picture-in-picture
-                    poster={course?.img || "/images/reactc.png"}
-                    style={{ width: "100%", backgroundColor: "black", display: "block" }}
-                    crossOrigin="anonymous" // For Cloudinary CORS support
-                    preload="metadata" // Load metadata for duration
-                  />
-                  {/* Progress Bar Overlay with Percentage - Real-time Updates */}
-                  <Box
-                    sx={{
-                      position: "absolute",
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      zIndex: 1,
-                    }}
-                  >
+                selectedLesson.videoUrl ? (
+                  <Box sx={{ position: "relative", bgcolor: "#000" }}>
+                    {/* No poster (was course PNG — looked like a static image). No crossOrigin — avoids GCS CORS blocking playback from localhost */}
+                    <video
+                      key={`${selectedLesson.id}-${selectedLesson.videoUrl}`}
+                      ref={videoRef}
+                      src={selectedLesson.videoUrl}
+                      controls
+                      controlsList="nodownload"
+                      disablePictureInPicture
+                      playsInline
+                      style={{ width: "100%", backgroundColor: "black", display: "block", minHeight: 220 }}
+                      preload="metadata"
+                    />
                     <Box
                       sx={{
-                        height: 4,
-                        bgcolor: "rgba(255, 255, 255, 0.3)",
+                        position: "absolute",
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        zIndex: 1,
                       }}
                     >
                       <Box
                         sx={{
-                          height: "100%",
-                          width: `${selectedLessonProgress.progressPercent}%`,
-                          bgcolor: greenColor,
-                          transition: "width 0.3s ease",
+                          height: 4,
+                          bgcolor: "rgba(255, 255, 255, 0.3)",
                         }}
-                      />
-                    </Box>
-                    <Box
-                      sx={{
-                        position: "absolute",
-                        bottom: 8,
-                        right: 8,
-                        bgcolor: "rgba(0, 0, 0, 0.7)",
-                        color: "white",
-                        px: 1.5,
-                        py: 0.5,
-                        borderRadius: 1,
-                        fontSize: "0.875rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {selectedLessonProgress.progressPercent}%
+                      >
+                        <Box
+                          sx={{
+                            height: "100%",
+                            width: `${selectedLessonProgress.progressPercent}%`,
+                            bgcolor: greenColor,
+                            transition: "width 0.3s ease",
+                          }}
+                        />
+                      </Box>
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          bottom: 8,
+                          right: 8,
+                          bgcolor: "rgba(0, 0, 0, 0.7)",
+                          color: "white",
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: 1,
+                          fontSize: "0.875rem",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {selectedLessonProgress.progressPercent}%
+                      </Box>
                     </Box>
                   </Box>
-                </Box>
+                ) : (
+                  <Box sx={{ p: 3 }}>
+                    <Typography variant="body1" color="text.secondary">
+                      No video is attached to this lesson yet.
+                    </Typography>
+                  </Box>
+                )
               ) : (
                 <Box sx={{ p: 3 }}>
                   <Typography variant="subtitle1" fontWeight={600}>
@@ -1904,7 +1020,7 @@ function CourseLearningPage({ courseId, course }) {
                 </Box>
               )}
               <Box sx={{ p: { xs: 2, md: 3 } }}>
-                {selectedLesson.type === "Video" && (
+                {selectedLesson.type === "Video" && selectedLesson.videoUrl && (
                   <Box
                     sx={{
                       mb: 2,

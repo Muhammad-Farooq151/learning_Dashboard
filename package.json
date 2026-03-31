@@ -33,8 +33,6 @@
     "react-phone-number-input": "^3.4.12",
     "react-spinners": "^0.17.0",
     "recharts": "^3.4.1",
-    "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3",
     "stripe": "^20.2.0",
     "sweetalert2": "^11.26.17",
     "yup": "^1.7.1"
