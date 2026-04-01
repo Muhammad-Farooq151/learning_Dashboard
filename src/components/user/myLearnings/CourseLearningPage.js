@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -42,6 +42,7 @@ import ImageIcon from "@mui/icons-material/Image";
 import { greenColor } from "@/components/utils/Colors";
 import Link from "next/link";
 import { getJSON } from "@/utils/http";
+import LessonVideoPlayer from "@/components/user/myLearnings/LessonVideoPlayer";
 
 // Helper function to format duration from seconds to "X Minutes" or "X Hours Y Minutes"
 const formatDuration = (seconds) => {
@@ -123,6 +124,8 @@ function CourseLearningPage({ courseId, course }) {
         summary: lesson.learningOutcomes || "",
         objectives: lesson.skills || [],
         videoUrl: lesson.videoUrl || null,
+        videoType: lesson.videoType || "mp4",
+        transcodingStatus: lesson.transcodingStatus || null,
         order: lesson.order || index,
       };
     });
@@ -158,9 +161,6 @@ function CourseLearningPage({ courseId, course }) {
   const selectedLessonProgress = useMemo(() => noTrackingSnapshot(), [selectedLessonId]);
 
   const courseProgress = 0;
-
-  // Video ref for tracking
-  const videoRef = useRef(null);
 
   const handleSectionToggle = (sectionId) => {
     setExpandedSections((prev) => ({
@@ -221,6 +221,22 @@ function CourseLearningPage({ courseId, course }) {
       setSelectedLesson(previousLesson);
     }
   };
+
+  /** When parent refetches course (e.g. HLS transcoding poll), keep open dialog in sync with latest transcodingStatus / videoUrl */
+  useEffect(() => {
+    if (!selectedLesson?.id) return;
+    const fresh = allLessons.find((l) => l.id === selectedLesson.id);
+    if (!fresh) return;
+    setSelectedLesson((prev) => {
+      if (!prev || prev.id !== fresh.id) return prev;
+      const same =
+        prev.transcodingStatus === fresh.transcodingStatus &&
+        prev.videoUrl === fresh.videoUrl &&
+        prev.videoType === fresh.videoType;
+      if (same) return prev;
+      return { ...fresh };
+    });
+  }, [allLessons, selectedLesson?.id]);
 
   if (!course) {
     return (
@@ -942,16 +958,11 @@ function CourseLearningPage({ courseId, course }) {
                 selectedLesson.videoUrl ? (
                   <Box sx={{ position: "relative", bgcolor: "#000" }}>
                     {/* No poster (was course PNG — looked like a static image). No crossOrigin — avoids GCS CORS blocking playback from localhost */}
-                    <video
-                      key={`${selectedLesson.id}-${selectedLesson.videoUrl}`}
-                      ref={videoRef}
-                      src={selectedLesson.videoUrl}
-                      controls
-                      controlsList="nodownload"
-                      disablePictureInPicture
-                      playsInline
-                      style={{ width: "100%", backgroundColor: "black", display: "block", minHeight: 220 }}
-                      preload="metadata"
+                    <LessonVideoPlayer
+                      key={`${selectedLesson.id}-${selectedLesson.videoUrl}-${selectedLesson.videoType}`}
+                      url={selectedLesson.videoUrl}
+                      videoType={selectedLesson.videoType || "mp4"}
+                      transcodingStatus={selectedLesson.transcodingStatus}
                     />
                     <Box
                       sx={{
