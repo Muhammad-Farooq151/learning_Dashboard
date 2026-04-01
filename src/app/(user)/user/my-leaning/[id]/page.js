@@ -5,6 +5,27 @@ import CourseLearningPage from "@/components/user/myLearnings/CourseLearningPage
 import { getJSON } from "@/utils/http";
 import { Box, CircularProgress, Typography } from "@mui/material";
 
+function mapCourseResponse(data) {
+  return {
+    id: data._id,
+    title: data.title || "",
+    desc: data.description || "",
+    progress: 0,
+    img: data.thumbnailUrl || "/images/default-course.png",
+    fullData: data,
+  };
+}
+
+/** True while any HLS lesson is still waiting on Cloud Transcoder — refetch until ready/failed */
+function courseNeedsTranscodingPoll(lessons) {
+  if (!Array.isArray(lessons)) return false;
+  return lessons.some(
+    (l) =>
+      l.videoType === "hls" &&
+      (l.transcodingStatus === "pending" || l.transcodingStatus === "processing")
+  );
+}
+
 function CourseLearningPageRoute({ params }) {
   const resolvedParams = use(params);
   const courseId = resolvedParams?.id;
@@ -13,38 +34,57 @@ function CourseLearningPageRoute({ params }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!courseId) return undefined;
+
+    let cancelled = false;
+
     const fetchCourse = async () => {
       try {
         setLoading(true);
         setError(null);
         const response = await getJSON(`courses/${courseId}`);
+        if (cancelled) return;
         if (response?.success && response.data) {
-          const data = response.data;
-          setCourse({
-            id: data._id,
-            title: data.title || "",
-            desc: data.description || "",
-            progress: 0,
-            img: data.thumbnailUrl || "/images/default-course.png",
-            // Pass full course data
-            fullData: data,
-          });
+          setCourse(mapCourseResponse(response.data));
         } else {
           setCourse(null);
         }
       } catch (err) {
         console.error("Error loading course for my-learning:", err);
-        setError(err.message || "Failed to load course");
-        setCourse(null);
+        if (!cancelled) {
+          setError(err.message || "Failed to load course");
+          setCourse(null);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
-    if (courseId) {
-      fetchCourse();
-    }
+    fetchCourse();
+    return () => {
+      cancelled = true;
+    };
   }, [courseId]);
+
+  /** Poll while transcoding so "Processing…" updates to the player without a manual refresh */
+  useEffect(() => {
+    if (!courseId || !course?.fullData?.lessons) return undefined;
+    if (!courseNeedsTranscodingPoll(course.fullData.lessons)) return undefined;
+
+    const poll = async () => {
+      try {
+        const response = await getJSON(`courses/${courseId}`);
+        if (response?.success && response.data) {
+          setCourse(mapCourseResponse(response.data));
+        }
+      } catch {
+        /* keep last good course */
+      }
+    };
+
+    const id = setInterval(poll, 10000);
+    return () => clearInterval(id);
+  }, [courseId, course]);
 
   if (loading) {
     return (
