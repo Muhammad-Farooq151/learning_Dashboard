@@ -84,10 +84,10 @@ export default function LoginPage() {
       try {
         setLoading(true);
         const response = await postJSON("/auth/login", values);
-        
+
         if (response.success && response.data) {
           persistAuthToken(response.data.token, response.data.user, rememberMe);
-          
+
           await Swal.fire({
             icon: 'success',
             title: 'Welcome Back!',
@@ -99,13 +99,28 @@ export default function LoginPage() {
           router.push("/user/dashboard");
         }
       } catch (e) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'Login Failed',
-          text: e.message || 'Invalid email or password. Please try again.',
-          confirmButtonColor: '#d33',
-          confirmButtonText: 'OK',
-        });
+        const msg = e.message || "";
+        const isAdminPortal =
+          /admin accounts cannot sign in here|admin login page/i.test(msg) ||
+          e.response?.data?.code === "ADMIN_USE_ADMIN_LOGIN";
+        if (isAdminPortal) {
+          await Swal.fire({
+            icon: "info",
+            title: "Use admin sign-in",
+            text: msg || "Administrator accounts must use the admin login page.",
+            confirmButtonColor: greenColor,
+            confirmButtonText: "Open admin login",
+          });
+          router.push("/admin-login");
+        } else {
+          await Swal.fire({
+            icon: 'error',
+            title: 'Login Failed',
+            text: msg || 'Invalid email or password. Please try again.',
+            confirmButtonColor: '#d33',
+            confirmButtonText: 'OK',
+          });
+        }
       } finally {
         setLoading(false);
       }
@@ -332,6 +347,8 @@ export default function LoginPage() {
                 </Typography>
               </Link>
             </Box>
+
+          
           </Box>
         </CardContent>
       </Box>

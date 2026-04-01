@@ -5,79 +5,95 @@ import {
   Avatar,
   Box,
   Chip,
+  CircularProgress,
   Grid,
   LinearProgress,
+  Paper,
+  Rating,
   Stack,
   Typography,
 } from "@mui/material";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import { greenColor } from "@/utils/Colors";
 
-const DEFAULT_DISTRIBUTION = [
-  { stars: 5, percent: 80 },
-  { stars: 4, percent: 10 },
-  { stars: 3, percent: 4 },
-  { stars: 2, percent: 1 },
-  { stars: 1, percent: 5 },
-];
-
-const MOCK_REVIEWS = [
-  {
-    id: 1,
-    name: "John Doe",
-    avatar: "J",
-    timeAgo: "1 week ago",
-    rating: 5,
-    text: "This course exceeded my expectations! The instructor's teaching style is clear and engaging. I was able to land a new job within 3 months of completing this course.",
-  },
-  {
-    id: 2,
-    name: "Emily Rodriguez",
-    avatar: "E",
-    timeAgo: "1 week ago",
-    rating: 5,
-    text: "Excellent content and great hands-on projects. The real-world examples really helped me understand complex concepts. Highly recommended!",
-  },
-  {
-    id: 3,
-    name: "David Kim",
-    avatar: "D",
-    timeAgo: "1 week ago",
-    rating: 4,
-    text: "Great course overall. Some sections could be more detailed, but the instructor is very knowledgeable and responsive to questions.",
-  },
-  {
-    id: 4,
-    name: "John Doe",
-    avatar: "J",
-    timeAgo: "1 week ago",
-    rating: 5,
-    text: "This course exceeded my expectations! The instructor's teaching style is clear and engaging. I was able to land a new job within 3 months of completing this course.",
-  },
-];
-
-function CourseReviews({ course }) {
+function CourseReviews({ reviews = [], loading = false, stats }) {
   const [activeFilter, setActiveFilter] = useState("All");
 
-  const rating = course?.rating ?? 4.8;
-  const totalReviews =
-    typeof course?.reviews === "number"
-      ? course.reviews
-      : course?.reviews
-      ? parseInt(String(course.reviews).replace(/\D/g, ""), 10) || 256
-      : 256;
+  const fallbackStats = useMemo(() => {
+    const list = reviews || [];
+    const n = list.length;
+    if (!n) {
+      return {
+        average: 0,
+        count: 0,
+        distribution: [5, 4, 3, 2, 1].map((stars) => ({ stars, percent: 0 })),
+      };
+    }
+    let sum = 0;
+    const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    list.forEach((r) => {
+      const raw = Number(r.rating);
+      const rating = Number.isFinite(raw) ? raw : 0;
+      sum += rating;
+      const star = Math.min(5, Math.max(1, Math.round(rating)));
+      counts[star] += 1;
+    });
+    const average = sum / n;
+    const distribution = [5, 4, 3, 2, 1].map((stars) => ({
+      stars,
+      percent: Math.round((counts[stars] / n) * 100),
+    }));
+    return { average, count: n, distribution };
+  }, [reviews]);
 
-  const distribution = course?.ratingDistribution || DEFAULT_DISTRIBUTION;
+  const { average, count, distribution } = stats || fallbackStats;
 
   const filteredReviews = useMemo(() => {
-    if (activeFilter === "All") return MOCK_REVIEWS;
+    if (activeFilter === "All") return reviews;
     const stars = parseInt(activeFilter, 10);
-    return MOCK_REVIEWS.filter((r) => r.rating === stars);
-  }, [activeFilter]);
+    return reviews.filter((r) => {
+      const raw = Number(r.rating);
+      const rating = Number.isFinite(raw) ? raw : 0;
+      return Math.round(rating) === stars;
+    });
+  }, [activeFilter, reviews]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!count) {
+    return (
+      <Box sx={{ p: { xs: 2, md: 4 } }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: 4,
+            textAlign: "center",
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+          }}
+        >
+          <StarRoundedIcon sx={{ fontSize: 48, color: "text.secondary", mb: 2, opacity: 0.5 }} />
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            No Reviews Yet
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Be the first to review this course after you enroll and complete it.
+          </Typography>
+        </Paper>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 } }}>
       <Stack spacing={4}>
-        {/* Rating summary */}
         <Box>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
             Reviews
@@ -86,18 +102,17 @@ function CourseReviews({ course }) {
             <Grid item xs={12} md={3}>
               <Stack spacing={0.5} alignItems={{ xs: "flex-start", md: "center" }}>
                 <Typography variant="h2" fontWeight={700} lineHeight={1}>
-                  {rating.toFixed(1)}
+                  {average.toFixed(1)}
                 </Typography>
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  {Array.from({ length: 5 }).map((_, idx) => (
-                    <StarRoundedIcon
-                      key={idx}
-                      sx={{ color: "#FFB400", fontSize: 20 }}
-                    />
-                  ))}
-                </Stack>
+                <Rating
+                  value={average}
+                  readOnly
+                  precision={0.1}
+                  icon={<StarRoundedIcon sx={{ color: "#FFB400" }} />}
+                  emptyIcon={<StarRoundedIcon sx={{ color: "action.disabled" }} />}
+                />
                 <Typography variant="body2" color="text.secondary">
-                  {totalReviews.toLocaleString()} Reviews
+                  {count} {count === 1 ? "review" : "reviews"}
                 </Typography>
               </Stack>
             </Grid>
@@ -105,22 +120,10 @@ function CourseReviews({ course }) {
             <Grid item xs={12} md={9}>
               <Stack spacing={1.2}>
                 {distribution.map((row) => (
-                  <Stack
-                    key={row.stars}
-                    direction="row"
-                    alignItems="center"
-                    spacing={1}
-                  >
-                    <Stack
-                      direction="row"
-                      spacing={0.5}
-                      alignItems="center"
-                      sx={{ minWidth: 56 }}
-                    >
+                  <Stack key={row.stars} direction="row" alignItems="center" spacing={1}>
+                    <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 56 }}>
                       <Typography variant="body2">{row.stars}</Typography>
-                      <StarRoundedIcon
-                        sx={{ color: "#FFB400", fontSize: 16 }}
-                      />
+                      <StarRoundedIcon sx={{ color: "#FFB400", fontSize: 16 }} />
                     </Stack>
                     <LinearProgress
                       variant="determinate"
@@ -136,11 +139,7 @@ function CourseReviews({ course }) {
                         },
                       }}
                     />
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ minWidth: 40, textAlign: "right" }}
-                    >
+                    <Typography variant="body2" color="text.secondary" sx={{ minWidth: 40, textAlign: "right" }}>
                       {row.percent}%
                     </Typography>
                   </Stack>
@@ -150,14 +149,12 @@ function CourseReviews({ course }) {
           </Grid>
         </Box>
 
-        {/* Filters */}
         <Stack direction="row" spacing={1} flexWrap="wrap">
-          {["All", "5", "4", "3", "2", "1"].map((label, index) => {
+          {["All", "5", "4", "3", "2", "1"].map((label) => {
             const isAll = label === "All";
             const chipLabel = isAll ? "All" : `${label} Star`;
             const value = isAll ? "All" : label;
-            const color =
-              value === activeFilter ? "primary" : "default";
+            const color = value === activeFilter ? "primary" : "default";
             return (
               <Chip
                 key={value}
@@ -172,57 +169,104 @@ function CourseReviews({ course }) {
           })}
         </Stack>
 
-        {/* Comments */}
         <Box>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
             Comments
           </Typography>
 
-          <Grid container spacing={3}>
-            {filteredReviews.map((review) => (
-              <Grid item xs={12} md={6} key={review.id}>
-                <Box
-                  sx={{
-                    bgcolor: "#ffffff",
-                    borderRadius: 3,
-                    p: 3,
-                    boxShadow:
-                      "0px 12px 30px rgba(15, 23, 42, 0.06), 0px 0px 1px rgba(15, 23, 42, 0.08)",
-                  }}
-                >
-                  <Stack
-                    direction="row"
-                    spacing={2}
-                    alignItems="center"
-                    mb={1.5}
+          {filteredReviews.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+              No reviews match this filter.
+            </Typography>
+          ) : (
+            <Grid container spacing={3}>
+              {filteredReviews.map((review, index) => (
+                <Grid item xs={12} md={6} key={review._id || index}>
+                  <Box
+                    sx={{
+                      bgcolor: "#ffffff",
+                      borderRadius: 3,
+                      p: 3,
+                      boxShadow:
+                        "0px 12px 30px rgba(15, 23, 42, 0.06), 0px 0px 1px rgba(15, 23, 42, 0.08)",
+                      height: "100%",
+                    }}
                   >
-                    <Avatar>{review.avatar}</Avatar>
-                    <Stack spacing={0.2}>
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        {review.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {review.timeAgo}
-                      </Typography>
+                    <Stack direction="row" spacing={2} alignItems="center" mb={1.5}>
+                      <Avatar
+                        sx={{
+                          bgcolor: greenColor,
+                          width: 48,
+                          height: 48,
+                          fontSize: "1rem",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {(review.fullName || review.userId?.fullName || "U")?.charAt(0)?.toUpperCase()}
+                      </Avatar>
+                      <Stack spacing={0.2} sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle2" fontWeight={600} noWrap title={review.fullName || review.userId?.fullName}>
+                          {review.fullName || review.userId?.fullName || "Anonymous User"}
+                        </Typography>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                          <Rating
+                            value={Number(review.rating) || 0}
+                            readOnly
+                            precision={0.5}
+                            size="small"
+                            icon={<StarRoundedIcon sx={{ color: "#F59E0B" }} />}
+                            emptyIcon={<StarRoundedIcon sx={{ color: "action.disabled" }} />}
+                          />
+                          <Typography variant="caption" color="text.secondary">
+                            {review.createdAt
+                              ? new Date(review.createdAt).toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })
+                              : ""}
+                          </Typography>
+                        </Stack>
+                      </Stack>
                     </Stack>
-                  </Stack>
 
-                  <Stack direction="row" spacing={0.5} mb={1}>
-                    {Array.from({ length: review.rating }).map((_, idx) => (
-                      <StarRoundedIcon
-                        key={idx}
-                        sx={{ color: "#FFB400", fontSize: 18 }}
-                      />
-                    ))}
-                  </Stack>
+                    {review.feedback && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: review.fileUrl ? 1.5 : 0 }}>
+                        {review.feedback}
+                      </Typography>
+                    )}
 
-                  <Typography variant="body2" color="text.secondary">
-                    {review.text}
-                  </Typography>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
+                    {review.fileUrl && (
+                      <Box
+                        sx={{
+                          borderRadius: 1.5,
+                          overflow: "hidden",
+                          border: "1px solid",
+                          borderColor: "divider",
+                          maxWidth: "100%",
+                        }}
+                      >
+                        <Box
+                          component="img"
+                          src={review.fileUrl}
+                          alt="Review attachment"
+                          sx={{
+                            width: "100%",
+                            maxHeight: 220,
+                            objectFit: "cover",
+                            display: "block",
+                            cursor: "pointer",
+                            "&:hover": { opacity: 0.92 },
+                          }}
+                          onClick={() => window.open(review.fileUrl, "_blank")}
+                        />
+                      </Box>
+                    )}
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          )}
         </Box>
       </Stack>
     </Box>
@@ -230,4 +274,3 @@ function CourseReviews({ course }) {
 }
 
 export default CourseReviews;
-

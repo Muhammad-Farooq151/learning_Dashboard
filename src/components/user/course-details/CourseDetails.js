@@ -37,6 +37,8 @@ function CourseDetails({ course }) {
   // null = unknown (initial), true/false = checked
   const [isEnrolled, setIsEnrolled] = useState(null);
   const [checkingEnroll, setCheckingEnroll] = useState(false);
+  const [courseReviews, setCourseReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
 
   // Map API course data to component structure
   const mappedCourse = useMemo(() => {
@@ -91,7 +93,59 @@ function CourseDetails({ course }) {
     };
   }, [course]);
 
+  const reviewStats = useMemo(() => {
+    const list = courseReviews;
+    const n = list.length;
+    if (!n) {
+      return {
+        average: 0,
+        count: 0,
+        distribution: [5, 4, 3, 2, 1].map((stars) => ({ stars, percent: 0 })),
+      };
+    }
+    let sum = 0;
+    const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    list.forEach((r) => {
+      const raw = Number(r.rating);
+      const rating = Number.isFinite(raw) ? raw : 0;
+      sum += rating;
+      const star = Math.min(5, Math.max(1, Math.round(rating)));
+      counts[star] += 1;
+    });
+    const average = sum / n;
+    const distribution = [5, 4, 3, 2, 1].map((stars) => ({
+      stars,
+      percent: Math.round((counts[stars] / n) * 100),
+    }));
+    return { average, count: n, distribution };
+  }, [courseReviews]);
+
   const faqs = useMemo(() => mappedCourse?.faq ?? [], [mappedCourse]);
+
+  useEffect(() => {
+    const id = mappedCourse?.id;
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingReviews(true);
+      try {
+        const response = await getJSON(`feedback/course/${id}`);
+        if (!cancelled && response?.success && Array.isArray(response.data)) {
+          setCourseReviews(response.data);
+        } else if (!cancelled) {
+          setCourseReviews([]);
+        }
+      } catch (error) {
+        console.error("Error loading course reviews:", error);
+        if (!cancelled) setCourseReviews([]);
+      } finally {
+        if (!cancelled) setLoadingReviews(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mappedCourse?.id]);
 
   // Check if user is already enrolled in this course
   useEffect(() => {
@@ -163,7 +217,7 @@ function CourseDetails({ course }) {
   }
 
   return (
-    <Box sx={{ px: 2, mx: "auto", maxWidth: "1200px" }}>
+    <Box sx={{ px: 2, mx: "auto" }}>
       <Stack spacing={4}>
         <Stack direction="row" alignItems="center" spacing={2}>
           <IconButton component={Link} href="/user/explore-courses">
@@ -229,7 +283,16 @@ function CourseDetails({ course }) {
                 <Stack direction="row" spacing={1} alignItems="center">
                   <StarRoundedIcon sx={{ color: "#FFB400" }} />
                   <Typography variant="body2" color="text.primary">
-                    {mappedCourse.rating.toFixed(1)} ({mappedCourse.reviews ?? "4.8k"} reviews)
+                    {loadingReviews ? (
+                      "…"
+                    ) : reviewStats.count > 0 ? (
+                      <>
+                        {reviewStats.average.toFixed(1)} ({reviewStats.count}{" "}
+                        {reviewStats.count === 1 ? "review" : "reviews"})
+                      </>
+                    ) : (
+                      "No reviews yet"
+                    )}
                   </Typography>
                 </Stack>
               </Stack>
@@ -499,7 +562,11 @@ function CourseDetails({ course }) {
           )}
 
           {tab === "reviews" && (
-            <CourseReviews course={mappedCourse} />
+            <CourseReviews
+              reviews={courseReviews}
+              loading={loadingReviews}
+              stats={reviewStats}
+            />
           )}
         </Box>
       </Stack>

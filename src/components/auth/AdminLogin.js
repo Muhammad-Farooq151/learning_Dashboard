@@ -86,13 +86,8 @@ export default function AdminLoginPage() {
         const response = await postJSON("/auth/admin-login", values);
         
         if (response.success && response.data) {
-          // Verify role is admin
-          if (response.data.user.role !== 'admin') {
-            throw new Error('Access denied. Admin privileges required.');
-          }
-          
           persistAuthToken(response.data.token, response.data.user, rememberMe);
-          
+
           await Swal.fire({
             icon: 'success',
             title: 'Welcome Admin!',
@@ -100,17 +95,34 @@ export default function AdminLoginPage() {
             confirmButtonColor: greenColor,
             confirmButtonText: 'Continue',
           });
-          
+
           router.push("/admin/dashboard");
         }
       } catch (e) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'Login Failed',
-          text: e.message || 'Invalid email or password. Please try again.',
-          confirmButtonColor: '#d33',
-          confirmButtonText: 'OK',
-        });
+        const msg = e.message || "";
+        const isLearnerAccount =
+          /learner accounts cannot sign in here|main site login/i.test(msg) ||
+          e.response?.data?.code === "USER_USE_LEARNER_LOGIN";
+        if (isLearnerAccount) {
+          await Swal.fire({
+            icon: "info",
+            title: "Learner sign-in",
+            text:
+              msg ||
+              "Use the main site login for your account.",
+            confirmButtonColor: greenColor,
+            confirmButtonText: "Go to home login",
+          });
+          router.push("/");
+        } else {
+          await Swal.fire({
+            icon: 'error',
+            title: 'Login Failed',
+            text: msg || 'Invalid email or password. Please try again.',
+            confirmButtonColor: '#d33',
+            confirmButtonText: 'OK',
+          });
+        }
       } finally {
         setLoading(false);
       }
@@ -264,7 +276,7 @@ export default function AdminLoginPage() {
               </Box>
             </Stack>
 
-            <Box component={motion.div} variants={sectionFade} display={"flex"} justifyContent={"center"} mt={2}>
+            <Box component={motion.div} variants={sectionFade} sx={{ mt: 2, textAlign: "center" }}>
               <Link href={"/"}>
                 <Typography
                   sx={{
@@ -278,7 +290,7 @@ export default function AdminLoginPage() {
                     },
                   }}
                 >
-                  Back to home
+                  Back to learner login (home)
                 </Typography>
               </Link>
             </Box>
