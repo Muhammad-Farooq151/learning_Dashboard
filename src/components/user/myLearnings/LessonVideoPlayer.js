@@ -72,7 +72,7 @@ function resolveMp4PlaybackUrl(originalUrl) {
  * MP4 or HLS (adaptive). HLS uses hls.js where needed; Safari uses native playback.
  * GCS HLS defaults to same-origin proxy (see /api/hls-proxy) so learners need not configure bucket CORS.
  */
-function useSignedMediaDelivery() {
+function isSignedMediaDeliveryEnabled() {
   if (typeof window === "undefined") return false;
   return String(process.env.NEXT_PUBLIC_MEDIA_DELIVERY || "").toLowerCase() === "signed";
 }
@@ -133,7 +133,7 @@ export default function LessonVideoPlayer({
       return undefined;
     }
 
-    const signedDelivery = useSignedMediaDelivery() && lessonId;
+    const signedDelivery = isSignedMediaDeliveryEnabled() && lessonId;
 
     if (signedDelivery && Hls.isSupported()) {
       let cancelled = false;
