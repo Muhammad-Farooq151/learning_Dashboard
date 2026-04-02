@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { useLessonVideoProgress } from "@/hooks/useLessonVideoProgress";
 import Hls from "hls.js";
 import { Box, Typography, CircularProgress } from "@mui/material";
 import { getStoredToken, getStoredUser } from "@/utils/authStorage";
@@ -88,11 +89,22 @@ export default function LessonVideoPlayer({
   videoType = "mp4",
   transcodingStatus,
   lessonId,
+  /** { userId, courseId, lessonId, durationSeconds, onProgressUpdate } — omit for no tracking */
+  progressTracking,
 }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const [hlsFatal, setHlsFatal] = useState(false);
   const [hlsErrorHint, setHlsErrorHint] = useState("");
+
+  const trackingMemo = useMemo(() => {
+    if (!progressTracking?.userId || !progressTracking?.courseId || !progressTracking?.lessonId) {
+      return null;
+    }
+    return progressTracking;
+  }, [progressTracking]);
+
+  useLessonVideoProgress(videoRef, trackingMemo);
 
   useEffect(() => {
     setHlsFatal(false);

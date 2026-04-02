@@ -1,6 +1,6 @@
 "use client";
 
-import { getStoredToken } from "@/utils/authStorage";
+import { getStoredToken, hasSessionForMediaProxy } from "@/utils/authStorage";
 
 /** Backend base (Express), e.g. http://localhost:5000 — from NEXT_PUBLIC_API_URL */
 export function getBackendOrigin() {
@@ -82,9 +82,11 @@ export function proxiedGcsHlsUrl(originalUrl) {
 export function courseThumbnailSrc(course, fallback = "/images/default-course.jpg") {
   if (!course) return fallback;
   if (course.thumbnailMediaPath) {
+    if (!hasSessionForMediaProxy()) return fallback;
     const token = getStoredToken();
-    if (!token) return fallback;
-    return `${getBackendOrigin()}${course.thumbnailMediaPath}?token=${encodeURIComponent(token)}`;
+    let url = `${getBackendOrigin()}${course.thumbnailMediaPath}`;
+    if (token) url += `?token=${encodeURIComponent(token)}`;
+    return url;
   }
   if (course.thumbnailUrl) {
     return proxiedGcsFileUrl(course.thumbnailUrl, fallback);
@@ -107,11 +109,42 @@ export function proxiedGcsFileUrl(originalUrl, fallback = "/images/default-cours
   if (!matchesPrefix(originalUrl, prefixes)) return originalUrl;
 
   const token = getStoredToken();
-  if (!token) {
+  if (!token && !hasSessionForMediaProxy()) {
     return fallback;
   }
 
   let base = `${getBackendOrigin()}/api/file-proxy?u=${encodeURIComponent(originalUrl)}`;
-  base += `&token=${encodeURIComponent(token)}`;
+  if (token) base += `&token=${encodeURIComponent(token)}`;
+  return base;
+}
+
+/**
+ * Admin "open in new tab" for lesson video — uses HLS vs file proxy with optional ?token=.
+ * Returns null only when a proxied GCS URL is required but there is no session.
+ */
+export function adminLessonPreviewUrl(videoUrl, videoType) {
+  if (!videoUrl || typeof videoUrl !== "string") return null;
+
+  const isHls =
+    videoType === "hls" || /\.m3u8(\?|$)/i.test(videoUrl);
+
+  if (isHls) {
+    if (String(process.env.NEXT_PUBLIC_HLS_PROXY_DISABLED).toLowerCase() === "true") {
+      return videoUrl;
+    }
+    if (!gcsUrlShouldUseProxy(videoUrl, "hls")) return videoUrl;
+    return proxiedGcsHlsUrl(videoUrl);
+  }
+
+  if (String(process.env.NEXT_PUBLIC_FILE_PROXY_DISABLED).toLowerCase() === "true") {
+    return videoUrl;
+  }
+  if (!gcsUrlShouldUseProxy(videoUrl, "file")) return videoUrl;
+
+  const token = getStoredToken();
+  if (!token && !hasSessionForMediaProxy()) return null;
+
+  let base = `${getBackendOrigin()}/api/file-proxy?u=${encodeURIComponent(videoUrl)}`;
+  if (token) base += `&token=${encodeURIComponent(token)}`;
   return base;
 }

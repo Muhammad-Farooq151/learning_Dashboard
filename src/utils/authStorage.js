@@ -75,6 +75,24 @@ export function getStoredToken() {
   }
 }
 
+/**
+ * True when the SPA has a valid session that can authorize media (Bearer in storage or httpOnly cookie session).
+ * Used to build proxy URLs without always appending ?token= (cookies work on cross-port localhost).
+ */
+export function hasSessionForMediaProxy() {
+  if (typeof window === "undefined") return false;
+  const raw = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed?.expiresAt || Date.now() > parsed.expiresAt) return false;
+    if (parsed.authViaCookie) return true;
+    return !!parsed.token;
+  } catch {
+    return false;
+  }
+}
+
 export function getStoredUser() {
   if (typeof window === "undefined") return null;
   const raw = localStorage.getItem(TOKEN_STORAGE_KEY);
