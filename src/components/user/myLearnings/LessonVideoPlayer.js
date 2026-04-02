@@ -3,6 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import { Box, Typography, CircularProgress } from "@mui/material";
+import { getStoredToken, getStoredUser } from "@/utils/authStorage";
+import {
+  getBackendOrigin,
+  proxiedGcsFileUrl,
+  proxiedGcsHlsUrl,
+  gcsUrlShouldUseProxy,
+} from "@/utils/mediaProxyUrl";
 
 /**
  * Serialize hls.js ErrorData for logs. Next.js dev overlay often renders a second `console.error`
@@ -55,35 +62,32 @@ function logHlsError(data) {
   console.warn("[HLS] " + serializeHlsError(data));
 }
 
-/**
- * Same-origin playback URL: /api/hls-proxy proxies GCS so the browser does not need bucket CORS.
- * Optional NEXT_PUBLIC_HLS_PROXY_URL_PREFIXES (comma-separated). Disable with NEXT_PUBLIC_HLS_PROXY_DISABLED=true.
- */
-function resolveHlsPlaybackUrl(originalUrl) {
-  if (typeof window === "undefined" || !originalUrl) return originalUrl;
-  if (String(process.env.NEXT_PUBLIC_HLS_PROXY_DISABLED).toLowerCase() === "true") {
-    return originalUrl;
-  }
-  const raw =
-    process.env.NEXT_PUBLIC_HLS_PROXY_URL_PREFIXES ||
-    "https://storage.googleapis.com/vixhunter-processed-videos";
-  const prefixes = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const allowed = prefixes.some((p) => originalUrl.startsWith(p));
-  if (!allowed) return originalUrl;
-  return `${window.location.origin}/api/hls-proxy?u=${encodeURIComponent(originalUrl)}`;
+/** MP4 / direct file from GCS → authenticated /api/file-proxy (empty string if no token + proxy required) */
+function resolveMp4PlaybackUrl(originalUrl) {
+  return proxiedGcsFileUrl(originalUrl, "");
 }
 
 /**
  * MP4 or HLS (adaptive). HLS uses hls.js where needed; Safari uses native playback.
  * GCS HLS defaults to same-origin proxy (see /api/hls-proxy) so learners need not configure bucket CORS.
  */
+function useSignedMediaDelivery() {
+  if (typeof window === "undefined") return false;
+  return String(process.env.NEXT_PUBLIC_MEDIA_DELIVERY || "").toLowerCase() === "signed";
+}
+
+function hasAuthSession() {
+  return Boolean(getStoredToken()) || Boolean(getStoredUser());
+}
+
+/**
+ * @param {string} [lessonId] — required when NEXT_PUBLIC_MEDIA_DELIVERY=signed (Doc §5–6)
+ */
 export default function LessonVideoPlayer({
   url,
   videoType = "mp4",
   transcodingStatus,
+  lessonId,
 }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
@@ -100,7 +104,12 @@ export default function LessonVideoPlayer({
     if (!video || !url) return undefined;
 
     if (videoType !== "hls") {
-      video.src = url;
+      const mp4 = resolveMp4PlaybackUrl(url);
+      if (!mp4) {
+        video.removeAttribute("src");
+        return undefined;
+      }
+      video.src = mp4;
       return () => {
         video.removeAttribute("src");
         video.load();
@@ -112,16 +121,97 @@ export default function LessonVideoPlayer({
       return undefined;
     }
 
+    const signedDelivery = useSignedMediaDelivery() && lessonId;
+
+    if (signedDelivery && Hls.isSupported()) {
+      let cancelled = false;
+      let networkRecoveryUsed = false;
+      let mediaRecoveryUsed = false;
+
+      const origin = getBackendOrigin();
+      (async () => {
+        try {
+          const res = await fetch(`${origin}/api/lessons/${lessonId}/stream`, {
+            credentials: "include",
+          });
+          const data = await res.json().catch(() => ({}));
+          if (cancelled || !res.ok || !data?.signedUrl) {
+            if (!res.ok) {
+              console.warn("[HLS signed]", res.status, data?.message || "");
+            }
+            return;
+          }
+          if (cancelled) return;
+          const playbackUrl = data.signedUrl;
+          const hls = new Hls({
+            enableWorker: false,
+            lowLatencyMode: false,
+            xhrSetup: (xhr, reqUrl) => {
+              if (reqUrl.includes("storage.googleapis.com")) {
+                const chunkUrl = `${origin}/api/media/chunk?u=${encodeURIComponent(reqUrl)}`;
+                xhr.open("GET", chunkUrl, true);
+              } else {
+                xhr.open("GET", reqUrl, true);
+              }
+              xhr.withCredentials = true;
+              const token = getStoredToken();
+              if (token) {
+                xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+              }
+            },
+          });
+          hlsRef.current = hls;
+          hls.loadSource(playbackUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.ERROR, (_, data) => {
+            if (!data?.fatal) return;
+            logHlsError(data);
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !networkRecoveryUsed) {
+              networkRecoveryUsed = true;
+              hls.startLoad();
+              return;
+            }
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecoveryUsed) {
+              mediaRecoveryUsed = true;
+              hls.recoverMediaError();
+              return;
+            }
+            setHlsErrorHint(serializeHlsError(data));
+            setHlsFatal(true);
+          });
+        } catch (e) {
+          console.warn("[HLS signed] setup failed", e);
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+      };
+    }
+
     if (Hls.isSupported()) {
       let networkRecoveryUsed = false;
       let mediaRecoveryUsed = false;
 
-      const playbackUrl = resolveHlsPlaybackUrl(url);
+      const playbackUrl = proxiedGcsHlsUrl(url);
+      if (!playbackUrl) {
+        return undefined;
+      }
 
       const hls = new Hls({
         // Main-thread loader: easier to debug CORS / clearer errors than default worker
         enableWorker: false,
         lowLatencyMode: false,
+        xhrSetup: (xhr) => {
+          const token = getStoredToken();
+          if (token) {
+            xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          }
+        },
       });
       hlsRef.current = hls;
       hls.loadSource(playbackUrl);
@@ -154,7 +244,26 @@ export default function LessonVideoPlayer({
     }
 
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = resolveHlsPlaybackUrl(url);
+      if (signedDelivery) {
+        let cancelled = false;
+        (async () => {
+          const origin = getBackendOrigin();
+          const res = await fetch(`${origin}/api/lessons/${lessonId}/stream`, {
+            credentials: "include",
+          });
+          const data = await res.json().catch(() => ({}));
+          if (cancelled || !res.ok || !data?.signedUrl) return;
+          video.src = data.signedUrl;
+        })();
+        return () => {
+          cancelled = true;
+          video.removeAttribute("src");
+          video.load();
+        };
+      }
+      const playbackUrl = proxiedGcsHlsUrl(url);
+      if (!playbackUrl) return undefined;
+      video.src = playbackUrl;
       return () => {
         video.removeAttribute("src");
         video.load();
@@ -163,7 +272,7 @@ export default function LessonVideoPlayer({
 
     console.warn("[HLS] Playback not supported in this browser");
     return undefined;
-  }, [url, videoType, transcodingStatus]);
+  }, [url, videoType, transcodingStatus, lessonId]);
 
   if (
     videoType === "hls" &&
@@ -189,12 +298,39 @@ export default function LessonVideoPlayer({
     );
   }
 
+  const mustSignInForMedia =
+    url &&
+    !hasAuthSession() &&
+    ((videoType === "hls" && gcsUrlShouldUseProxy(url, "hls")) ||
+      (videoType !== "hls" && gcsUrlShouldUseProxy(url, "file")));
+
+  if (mustSignInForMedia) {
+    return (
+      <Box
+        sx={{
+          p: 4,
+          textAlign: "center",
+          bgcolor: "#000",
+          color: "#fff",
+          minHeight: 220,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Typography variant="body2">
+          Sign in to watch this lesson. Protected video requires an account and course access.
+        </Typography>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ bgcolor: "#000", minHeight: 220 }}>
       {videoType === "hls" && hlsFatal && (
         <Box sx={{ p: 2, borderBottom: "1px solid #333" }}>
           <Typography variant="body2" color="error.light" sx={{ mb: 1 }}>
-            Playback failed. HLS normally uses the same-origin proxy <code>/api/hls-proxy</code>. If this
+            Playback failed. HLS uses the API server proxy (see <code>/api/hls-proxy</code> on the backend). If this
             persists, set GCS bucket CORS or check the error details below.
           </Typography>
           {hlsErrorHint ? (

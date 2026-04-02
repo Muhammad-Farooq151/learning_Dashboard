@@ -42,6 +42,7 @@ import ImageIcon from "@mui/icons-material/Image";
 import { greenColor } from "@/components/utils/Colors";
 import Link from "next/link";
 import { getJSON } from "@/utils/http";
+import { proxiedGcsFileUrl } from "@/utils/mediaProxyUrl";
 import LessonVideoPlayer from "@/components/user/myLearnings/LessonVideoPlayer";
 
 // Helper function to format duration from seconds to "X Minutes" or "X Hours Y Minutes"
@@ -649,7 +650,7 @@ function CourseLearningPage({ courseId, course }) {
                             <Button
                               variant="contained"
                               startIcon={<DownloadRoundedIcon />}
-                              href={resource.fileUrl}
+                              href={proxiedGcsFileUrl(resource.fileUrl)}
                               download
                               target="_blank"
                               rel="noopener noreferrer"
@@ -795,7 +796,7 @@ function CourseLearningPage({ courseId, course }) {
                             >
                               <Box
                                 component="img"
-                                src={review.fileUrl}
+                                src={proxiedGcsFileUrl(review.fileUrl)}
                                 alt="Review attachment"
                                 sx={{
                                   width: "100%",
@@ -804,7 +805,9 @@ function CourseLearningPage({ courseId, course }) {
                                   cursor: "pointer",
                                   "&:hover": { opacity: 0.9 },
                                 }}
-                                onClick={() => window.open(review.fileUrl, "_blank")}
+                                onClick={() =>
+                                  window.open(proxiedGcsFileUrl(review.fileUrl), "_blank")
+                                }
                               />
                             </Box>
                           )}
@@ -960,6 +963,7 @@ function CourseLearningPage({ courseId, course }) {
                     {/* No poster (was course PNG — looked like a static image). No crossOrigin — avoids GCS CORS blocking playback from localhost */}
                     <LessonVideoPlayer
                       key={`${selectedLesson.id}-${selectedLesson.videoUrl}-${selectedLesson.videoType}`}
+                      lessonId={selectedLesson.id}
                       url={selectedLesson.videoUrl}
                       videoType={selectedLesson.videoType || "mp4"}
                       transcodingStatus={selectedLesson.transcodingStatus}

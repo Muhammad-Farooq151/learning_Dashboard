@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import { greenColor } from "@/utils/Colors";
+import { proxiedGcsFileUrl } from "@/utils/mediaProxyUrl";
 
 function CourseReviews({ reviews = [], loading = false, stats }) {
   const [activeFilter, setActiveFilter] = useState("All");
@@ -248,7 +249,7 @@ function CourseReviews({ reviews = [], loading = false, stats }) {
                       >
                         <Box
                           component="img"
-                          src={review.fileUrl}
+                          src={proxiedGcsFileUrl(review.fileUrl)}
                           alt="Review attachment"
                           sx={{
                             width: "100%",
@@ -258,7 +259,9 @@ function CourseReviews({ reviews = [], loading = false, stats }) {
                             cursor: "pointer",
                             "&:hover": { opacity: 0.92 },
                           }}
-                          onClick={() => window.open(review.fileUrl, "_blank")}
+                          onClick={() =>
+                            window.open(proxiedGcsFileUrl(review.fileUrl), "_blank")
+                          }
                         />
                       </Box>
                     )}

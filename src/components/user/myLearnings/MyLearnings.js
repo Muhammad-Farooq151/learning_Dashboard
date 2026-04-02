@@ -19,6 +19,7 @@ import toast from "react-hot-toast";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useRouter } from "next/navigation";
 import { getJSON } from "@/utils/http";
+import { courseThumbnailSrc } from "@/utils/mediaProxyUrl";
 import { getStoredUserId } from "@/utils/authStorage";
 
 function getWatchedSecondsFromRanges(watchedRanges = [], lessonDuration = 0) {
@@ -145,7 +146,11 @@ function MyLearnings() {
                     title: course.title,
                     desc: course.description,
                     progress: 0,
-                    img: course.thumbnailUrl || "/images/default-course.png",
+                    img: courseThumbnailSrc({
+                      id: course.id,
+                      thumbnailUrl: course.thumbnailUrl,
+                      thumbnailMediaPath: course.thumbnailMediaPath,
+                    }),
                     isComplete: false,
                   };
                 }
@@ -159,7 +164,11 @@ function MyLearnings() {
                     title: course.title,
                     desc: course.description,
                     progress: 0,
-                    img: course.thumbnailUrl || "/images/default-course.png",
+                    img: courseThumbnailSrc({
+                      id: course.id,
+                      thumbnailUrl: course.thumbnailUrl,
+                      thumbnailMediaPath: course.thumbnailMediaPath,
+                    }),
                     isComplete: false,
                   };
                 }
@@ -172,7 +181,11 @@ function MyLearnings() {
                     title: course.title,
                     desc: course.description,
                     progress: 0,
-                    img: course.thumbnailUrl || "/images/default-course.png",
+                    img: courseThumbnailSrc({
+                      id: course.id,
+                      thumbnailUrl: course.thumbnailUrl,
+                      thumbnailMediaPath: course.thumbnailMediaPath,
+                    }),
                     isComplete: false,
                   };
                 }
@@ -186,7 +199,12 @@ function MyLearnings() {
                   title: course.title,
                   desc: course.description,
                   progress: progressSummary.progressPercentage,
-                  img: course.thumbnailUrl || "/images/default-course.png",
+                  img: courseThumbnailSrc({
+                    _id: courseDetails._id || course.id,
+                    thumbnailUrl: courseDetails.thumbnailUrl || course.thumbnailUrl,
+                    thumbnailMediaPath:
+                      courseDetails.thumbnailMediaPath || course.thumbnailMediaPath,
+                  }),
                   isComplete: progressSummary.isComplete,
                   completedLessons: progressSummary.completedLessons,
                   totalLessons: progressSummary.totalLessons,
@@ -198,7 +216,11 @@ function MyLearnings() {
                   title: course.title,
                   desc: course.description,
                   progress: 0,
-                  img: course.thumbnailUrl || "/images/default-course.png",
+                  img: courseThumbnailSrc({
+                    _id: course.id,
+                    thumbnailUrl: course.thumbnailUrl,
+                    thumbnailMediaPath: course.thumbnailMediaPath,
+                  }),
                   isComplete: false,
                   completedLessons: 0,
                   totalLessons: 0,

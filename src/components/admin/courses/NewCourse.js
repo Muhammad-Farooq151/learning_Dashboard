@@ -42,6 +42,7 @@ import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownR
 import { greenColor } from "@/utils/Colors";
 import Swal from "sweetalert2";
 import { postFormData, putFormData, getJSON } from "@/utils/http";
+import { proxiedGcsFileUrl } from "@/utils/mediaProxyUrl";
 import * as Yup from "yup";
 
 const steps = ["Course Details", "Upload Course Video", "Ready to Publish"];
@@ -2382,7 +2383,7 @@ function NewCourse({ courseId = null }) {
                     <Box sx={{ position: "relative", width: "100%" }}>
                       <Box
                         component="img"
-                        src={existingThumbnailUrl}
+                        src={proxiedGcsFileUrl(existingThumbnailUrl)}
                         alt="Current thumbnail"
                         sx={{
                           maxWidth: "100%",

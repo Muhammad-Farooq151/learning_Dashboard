@@ -25,12 +25,14 @@ const sanitizeUser = (user = {}) => {
 };
 
 export function persistAuthToken(token, user, rememberMe = true) {
-  if (typeof window === "undefined" || !token) return;
+  if (typeof window === "undefined" || !user) return;
   const sanitizedUser = sanitizeUser(user);
   // If rememberMe is true, save for 7 days, otherwise save for 1 day
   const expiresIn = rememberMe ? SEVEN_DAYS_MS : ONE_DAY_MS;
   const payload = {
-    token,
+    token: token || "",
+    /** Server set httpOnly cookie only — no Bearer token in SPA */
+    authViaCookie: !token,
     email: sanitizedUser?.email || user?.email || "",
     userId: sanitizedUser?.id || user?.id || user?._id || "",
     user: sanitizedUser,
@@ -51,11 +53,18 @@ export function getStoredToken() {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    if (!parsed?.token || !parsed?.expiresAt) {
+    if (!parsed?.expiresAt) {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
       return null;
     }
     if (Date.now() > parsed.expiresAt) {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+      return null;
+    }
+    if (parsed.authViaCookie) {
+      return null;
+    }
+    if (!parsed.token) {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
       return null;
     }
@@ -164,7 +173,13 @@ export function isTokenExpired() {
   if (!raw) return true;
   try {
     const parsed = JSON.parse(raw);
-    if (!parsed?.token || !parsed?.expiresAt) {
+    if (!parsed?.expiresAt) {
+      return true;
+    }
+    if (parsed.authViaCookie) {
+      return Date.now() > parsed.expiresAt;
+    }
+    if (!parsed?.token) {
       return true;
     }
     return Date.now() > parsed.expiresAt;
