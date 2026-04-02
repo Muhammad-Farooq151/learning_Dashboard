@@ -37,6 +37,7 @@ import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import "./checkout-phone-input.css";
 import Swal from "sweetalert2";
+import Link from "next/link";
 
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder");
@@ -70,7 +71,6 @@ function CheckoutForm({ course, onSuccess }) {
     cardName: "",
     expirationDate: "",
     cvv: "",
-    rememberMe: false,
     acceptTerms: false,
   });
   const [paymentMethod, setPaymentMethod] = useState("card");
@@ -295,27 +295,6 @@ function CheckoutForm({ course, onSuccess }) {
                 helperText={errors.fullName}
                 sx={{ mb: 1 }}
               />
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={formData.rememberMe}
-                      onChange={(e) =>
-                        setFormData({ ...formData, rememberMe: e.target.checked })
-                      }
-                      size="small"
-                    />
-                  }
-                  label="Remember Me"
-                />
-                <Typography
-                  variant="body2"
-                  color="primary"
-                  sx={{ cursor: "pointer", textDecoration: "underline" }}
-                >
-                  Forgot password?
-                </Typography>
-              </Stack>
             </Box>
 
             <Box>
@@ -334,27 +313,6 @@ function CheckoutForm({ course, onSuccess }) {
                   {errors.phoneNumber}
                 </Typography>
               )}
-              <Stack direction="row" alignItems="center" spacing={1} mt={1}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={formData.rememberMe}
-                      onChange={(e) =>
-                        setFormData({ ...formData, rememberMe: e.target.checked })
-                      }
-                      size="small"
-                    />
-                  }
-                  label="Remember Me"
-                />
-                <Typography
-                  variant="body2"
-                  color="primary"
-                  sx={{ cursor: "pointer", textDecoration: "underline" }}
-                >
-                  Forgot password?
-                </Typography>
-              </Stack>
             </Box>
           </Stack>
         </Box>
@@ -430,27 +388,6 @@ function CheckoutForm({ course, onSuccess }) {
                     {errors.card}
                   </Typography>
                 )}
-                <Stack direction="row" alignItems="center" spacing={1} mt={1}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.rememberMe}
-                        onChange={(e) =>
-                          setFormData({ ...formData, rememberMe: e.target.checked })
-                        }
-                        size="small"
-                      />
-                    }
-                    label="Remember Me"
-                  />
-                  <Typography
-                    variant="body2"
-                    color="primary"
-                    sx={{ cursor: "pointer", textDecoration: "underline" }}
-                  >
-                    Forgot password?
-                  </Typography>
-                </Stack>
               </Box>
 
               {/* <Grid container spacing={2}>
@@ -464,27 +401,6 @@ function CheckoutForm({ course, onSuccess }) {
                     error={!!errors.cardName}
                     helperText={errors.cardName}
                   />
-                  <Stack direction="row" alignItems="center" spacing={1} mt={1}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={formData.rememberMe}
-                          onChange={(e) =>
-                            setFormData({ ...formData, rememberMe: e.target.checked })
-                          }
-                          size="small"
-                        />
-                      }
-                      label="Remember Me"
-                    />
-                    <Typography
-                      variant="body2"
-                      color="primary"
-                      sx={{ cursor: "pointer", textDecoration: "underline" }}
-                    >
-                      Forgot password?
-                    </Typography>
-                  </Stack>
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
@@ -497,27 +413,6 @@ function CheckoutForm({ course, onSuccess }) {
                     helperText={errors.expirationDate}
                     inputProps={{ maxLength: 7 }}
                   />
-                  <Stack direction="row" alignItems="center" spacing={1} mt={1}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={formData.rememberMe}
-                          onChange={(e) =>
-                            setFormData({ ...formData, rememberMe: e.target.checked })
-                          }
-                          size="small"
-                        />
-                      }
-                      label="Remember Me"
-                    />
-                    <Typography
-                      variant="body2"
-                      color="primary"
-                      sx={{ cursor: "pointer", textDecoration: "underline" }}
-                    >
-                      Forgot password?
-                    </Typography>
-                  </Stack>
                 </Grid>
               </Grid>
 
@@ -537,27 +432,6 @@ function CheckoutForm({ course, onSuccess }) {
                 <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block" }}>
                   Note: 3-digit code on the back of your card
                 </Typography>
-                <Stack direction="row" alignItems="center" spacing={1} mt={1}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.rememberMe}
-                        onChange={(e) =>
-                          setFormData({ ...formData, rememberMe: e.target.checked })
-                        }
-                        size="small"
-                      />
-                    }
-                    label="Remember Me"
-                  />
-                  <Typography
-                    variant="body2"
-                    color="primary"
-                    sx={{ cursor: "pointer", textDecoration: "underline" }}
-                  >
-                    Forgot password?
-                  </Typography>
-                </Stack>
               </Box> */}
             </Stack>
           )}
@@ -579,15 +453,19 @@ function CheckoutForm({ course, onSuccess }) {
               />
             }
             label={
-              <Typography variant="body2">
+              <Typography variant="body2" component="span">
                 I accept the{" "}
-                <Typography
-                  component="span"
-                  color="primary"
-                  sx={{ cursor: "pointer", textDecoration: "underline" }}
+                <Link
+                  href="/terms-conditions"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    color: greenColor,
+                    fontWeight: 600,
+                    textDecoration: "underline",
+                  }}
                 >
                   General Terms & Conditions
-                </Typography>
+                </Link>
               </Typography>
             }
           />
