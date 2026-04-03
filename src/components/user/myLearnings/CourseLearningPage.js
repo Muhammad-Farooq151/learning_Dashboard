@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -42,7 +42,10 @@ import ImageIcon from "@mui/icons-material/Image";
 import { greenColor } from "@/components/utils/Colors";
 import Link from "next/link";
 import { getJSON } from "@/utils/http";
+import { getStoredUserId } from "@/utils/authStorage";
+import { proxiedGcsFileUrl } from "@/utils/mediaProxyUrl";
 import LessonVideoPlayer from "@/components/user/myLearnings/LessonVideoPlayer";
+import WatchedRangesTimeline from "@/components/user/myLearnings/WatchedRangesTimeline";
 
 // Helper function to format duration from seconds to "X Minutes" or "X Hours Y Minutes"
 const formatDuration = (seconds) => {
@@ -67,6 +70,7 @@ const noTrackingSnapshot = () => ({
   completed: false,
   watchedRanges: [],
   progressPercent: 0,
+  videoDurationSec: 0,
 });
 
 function CourseLearningPage({ courseId, course }) {
@@ -75,6 +79,88 @@ function CourseLearningPage({ courseId, course }) {
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
+  const [progressState, setProgressState] = useState({
+    map: {},
+    coursePercent: 0,
+    courseCompleted: false,
+  });
+
+  const [progressUserId, setProgressUserId] = useState(null);
+  useEffect(() => {
+    setProgressUserId(getStoredUserId());
+  }, []);
+
+  useEffect(() => {
+    const uid = getStoredUserId();
+    if (!uid || !courseId) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getJSON(`progress/${courseId}?userId=${uid}`);
+        if (cancelled || !res?.success || !res.data) return;
+        const map = {};
+        for (const l of res.data.lessons || []) {
+          const lid = String(l.lessonId?._id || l.lessonId);
+          const dur = Number(l.duration) || 0;
+          const wp =
+            Number(l.watchedPercent) >= 0
+              ? Math.min(100, Number(l.watchedPercent))
+              : dur > 0 && l.watched != null
+                ? Math.min(100, Math.round((Number(l.watched) / dur) * 100))
+                : 0;
+          map[lid] = {
+            watchedPercent: wp,
+            completed: !!l.completed,
+            watched: l.watched ?? l.resumeTime ?? 0,
+            watchedRanges: Array.isArray(l.watchedRanges) ? l.watchedRanges : [],
+            /** From progress doc — actual video length used server-side (fallback when course.lesson.duration is 0) */
+            videoDurationSec: Number(l.duration) || 0,
+          };
+        }
+        setProgressState({
+          map,
+          coursePercent: res.data.coursePercent ?? res.data.overallProgress ?? 0,
+          courseCompleted: !!res.data.courseCompleted,
+        });
+      } catch (e) {
+        console.warn("[progress] load failed", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
+
+  const handleProgressUpdate = useCallback((payload) => {
+    setProgressState((prev) => {
+      const nextMap = { ...prev.map };
+      const lid = payload.lessonId != null ? String(payload.lessonId) : null;
+      if (lid) {
+        const cur = nextMap[lid] || {};
+        nextMap[lid] = {
+          watchedPercent:
+            payload.watchedPercent != null ? payload.watchedPercent : cur.watchedPercent ?? 0,
+          completed:
+            payload.completed != null ? !!payload.completed : cur.completed ?? false,
+          watched: payload.currentTime != null ? payload.currentTime : cur.watched ?? 0,
+          watchedRanges:
+            Array.isArray(payload.watchedRanges) ? payload.watchedRanges : cur.watchedRanges ?? [],
+          videoDurationSec:
+            payload.duration != null && Number(payload.duration) > 0
+              ? Number(payload.duration)
+              : cur.videoDurationSec ?? 0,
+        };
+      }
+      return {
+        map: nextMap,
+        coursePercent:
+          payload.coursePercent != null ? payload.coursePercent : prev.coursePercent,
+        courseCompleted:
+          payload.courseCompleted != null ? payload.courseCompleted : prev.courseCompleted,
+      };
+    });
+  }, []);
 
   // Load reviews when reviews tab is selected
   useEffect(() => {
@@ -100,7 +186,6 @@ function CourseLearningPage({ courseId, course }) {
     loadReviews();
   }, [tab, courseId]);
 
-  // Transform API lessons data into curriculum format (progress tracking disabled)
   const curriculum = useMemo(() => {
     if (!course?.fullData?.lessons || !Array.isArray(course.fullData.lessons)) {
       return { sections: [] };
@@ -109,18 +194,19 @@ function CourseLearningPage({ courseId, course }) {
     const lessons = course.fullData.lessons.map((lesson, index) => {
       const lessonId = lesson._id ? lesson._id.toString() : index.toString();
       const lessonDuration = lesson.duration || 0;
-      const progress = noTrackingSnapshot();
-      
+      const saved = progressState.map[lessonId];
+      const progressPercent = saved?.watchedPercent ?? 0;
+
       return {
         id: lessonId,
         title: lesson.lessonName || `Lesson ${index + 1}`,
         duration: formatDuration(lessonDuration),
         durationSeconds: lessonDuration,
         type: lesson.videoUrl ? "Video" : "Quiz",
-        completed: progress.completed,
-        progress: progress.progressPercent,
-        watched: progress.watched || 0, // Resume position
-        watchedSeconds: progress.watchedSeconds || 0, // Actual watched time from ranges
+        completed: saved?.completed ?? false,
+        progress: progressPercent,
+        watched: saved?.watched ?? 0,
+        watchedSeconds: 0,
         summary: lesson.learningOutcomes || "",
         objectives: lesson.skills || [],
         videoUrl: lesson.videoUrl || null,
@@ -144,7 +230,7 @@ function CourseLearningPage({ courseId, course }) {
         },
       ],
     };
-  }, [course]);
+  }, [course, progressState.map]);
 
   const totalLessons = useMemo(
     () => curriculum.sections.reduce((sum, section) => sum + section.lessons.length, 0),
@@ -158,9 +244,42 @@ function CourseLearningPage({ courseId, course }) {
 
   const selectedLessonId = selectedLesson?.id || null;
 
-  const selectedLessonProgress = useMemo(() => noTrackingSnapshot(), [selectedLessonId]);
+  const selectedLessonProgress = useMemo(() => {
+    if (!selectedLessonId) return noTrackingSnapshot();
+    const p = progressState.map[selectedLessonId];
+    return {
+      watched: p?.watched ?? 0,
+      watchedSeconds: 0,
+      completed: p?.completed ?? false,
+      watchedRanges: p?.watchedRanges ?? [],
+      progressPercent: p?.watchedPercent ?? 0,
+      videoDurationSec: p?.videoDurationSec ?? 0,
+    };
+  }, [selectedLessonId, progressState.map]);
 
-  const courseProgress = 0;
+  /** Prefer course lesson duration, then duration learned from the video / progress save */
+  const timelineDurationSeconds = useMemo(() => {
+    const fromLesson = selectedLesson?.durationSeconds || 0;
+    const fromPlayer = selectedLessonProgress.videoDurationSec || 0;
+    const ends = (selectedLessonProgress.watchedRanges || []).map((r) => Number(r?.end) || 0);
+    const maxEnd = ends.length ? Math.max(...ends) : 0;
+    return Math.max(fromLesson, fromPlayer, maxEnd);
+  }, [selectedLesson?.durationSeconds, selectedLessonProgress]);
+
+  const courseProgress = progressState.coursePercent;
+
+  const videoProgressTracking = useMemo(() => {
+    if (!selectedLesson || !courseId || !progressUserId || selectedLesson.type !== "Video") {
+      return null;
+    }
+    return {
+      userId: progressUserId,
+      courseId,
+      lessonId: selectedLesson.id,
+      durationSeconds: selectedLesson.durationSeconds || 0,
+      onProgressUpdate: handleProgressUpdate,
+    };
+  }, [selectedLesson, courseId, progressUserId, handleProgressUpdate]);
 
   const handleSectionToggle = (sectionId) => {
     setExpandedSections((prev) => ({
@@ -649,7 +768,7 @@ function CourseLearningPage({ courseId, course }) {
                             <Button
                               variant="contained"
                               startIcon={<DownloadRoundedIcon />}
-                              href={resource.fileUrl}
+                              href={proxiedGcsFileUrl(resource.fileUrl)}
                               download
                               target="_blank"
                               rel="noopener noreferrer"
@@ -795,7 +914,7 @@ function CourseLearningPage({ courseId, course }) {
                             >
                               <Box
                                 component="img"
-                                src={review.fileUrl}
+                                src={proxiedGcsFileUrl(review.fileUrl)}
                                 alt="Review attachment"
                                 sx={{
                                   width: "100%",
@@ -804,7 +923,9 @@ function CourseLearningPage({ courseId, course }) {
                                   cursor: "pointer",
                                   "&:hover": { opacity: 0.9 },
                                 }}
-                                onClick={() => window.open(review.fileUrl, "_blank")}
+                                onClick={() =>
+                                  window.open(proxiedGcsFileUrl(review.fileUrl), "_blank")
+                                }
                               />
                             </Box>
                           )}
@@ -930,7 +1051,7 @@ function CourseLearningPage({ courseId, course }) {
         open={Boolean(selectedLesson)}
         onClose={closeLessonDialog}
         fullWidth
-        maxWidth="md"
+        maxWidth="xl"
         PaperProps={{
           sx: { borderRadius: 3, overflow: "hidden" },
         }}
@@ -960,9 +1081,11 @@ function CourseLearningPage({ courseId, course }) {
                     {/* No poster (was course PNG — looked like a static image). No crossOrigin — avoids GCS CORS blocking playback from localhost */}
                     <LessonVideoPlayer
                       key={`${selectedLesson.id}-${selectedLesson.videoUrl}-${selectedLesson.videoType}`}
+                      lessonId={selectedLesson.id}
                       url={selectedLesson.videoUrl}
                       videoType={selectedLesson.videoType || "mp4"}
                       transcodingStatus={selectedLesson.transcodingStatus}
+                      progressTracking={videoProgressTracking}
                     />
                     <Box
                       sx={{
@@ -973,21 +1096,16 @@ function CourseLearningPage({ courseId, course }) {
                         zIndex: 1,
                       }}
                     >
-                      <Box
-                        sx={{
-                          height: 4,
-                          bgcolor: "rgba(255, 255, 255, 0.3)",
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            height: "100%",
-                            width: `${selectedLessonProgress.progressPercent}%`,
-                            bgcolor: greenColor,
-                            transition: "width 0.3s ease",
-                          }}
-                        />
-                      </Box>
+                      <WatchedRangesTimeline
+                        ranges={selectedLessonProgress.watchedRanges}
+                        durationSeconds={timelineDurationSeconds}
+                        fallbackPercent={
+                          selectedLessonProgress.watchedRanges?.length
+                            ? undefined
+                            : selectedLessonProgress.progressPercent
+                        }
+                        variant="overlay"
+                      />
                       <Box
                         sx={{
                           position: "absolute",
@@ -1050,21 +1168,19 @@ function CourseLearningPage({ courseId, course }) {
                         {selectedLessonProgress.progressPercent}%
                       </Typography>
                     </Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={selectedLessonProgress.progressPercent}
-                      sx={{
-                        height: 8,
-                        borderRadius: 5,
-                        backgroundColor: "#E5FFF7",
-                        [`& .MuiLinearProgress-bar`]: {
-                          backgroundColor: greenColor,
-                        },
-                      }}
+                    <WatchedRangesTimeline
+                      ranges={selectedLessonProgress.watchedRanges}
+                      durationSeconds={timelineDurationSeconds}
+                      fallbackPercent={
+                        selectedLessonProgress.watchedRanges?.length
+                          ? undefined
+                          : selectedLessonProgress.progressPercent
+                      }
+                      variant="panel"
                     />
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                      Progress updates instantly while the video plays. Already watched seconds are
-                      preserved and only new watched time is added.
+                      Green marks show which parts of the timeline you have actually watched (skips are not
+                      counted).
                     </Typography>
                   </Box>
                 )}

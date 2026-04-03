@@ -33,6 +33,7 @@ import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import { ClipLoader } from "react-spinners";
 import { greenColor } from "@/components/utils/Colors";
 import { getJSON, postJSON, postFormData } from "@/utils/http";
+import { proxiedGcsFileUrl } from "@/utils/mediaProxyUrl";
 import { getStoredUserId, getStoredUser } from "@/utils/authStorage";
 import Swal from "sweetalert2";
 import html2canvas from "html2canvas";
@@ -1440,7 +1441,7 @@ export default function Certifications() {
                 >
                   <Box
                     component="img"
-                    src={existingFeedback.fileUrl}
+                    src={proxiedGcsFileUrl(existingFeedback.fileUrl)}
                     alt="Uploaded review"
                     sx={{ width: "100%", height: "100%", objectFit: "cover" }}
                   />
@@ -1448,7 +1449,7 @@ export default function Certifications() {
                 <Typography sx={{ color: palette.green, fontSize: 12 }}>
                   Uploaded:{" "}
                   <a
-                    href={existingFeedback.fileUrl}
+                    href={proxiedGcsFileUrl(existingFeedback.fileUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ color: palette.green, textDecoration: "underline" }}

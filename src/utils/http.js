@@ -5,9 +5,10 @@ import { getStoredToken } from './authStorage';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-// Create axios instance with default config
+// Create axios instance with default config (Doc §3.6 — send httpOnly cookies to API)
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },

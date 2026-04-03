@@ -42,6 +42,7 @@ import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownR
 import { greenColor } from "@/utils/Colors";
 import Swal from "sweetalert2";
 import { postFormData, putFormData, getJSON } from "@/utils/http";
+import { courseThumbnailSrc, adminLessonPreviewUrl } from "@/utils/mediaProxyUrl";
 import * as Yup from "yup";
 
 const steps = ["Course Details", "Upload Course Video", "Ready to Publish"];
@@ -187,6 +188,7 @@ function NewCourse({ courseId = null }) {
       learningOutcomes: "",
       videoFile: null,
       videoUrl: null, // For existing videos in edit mode
+      videoType: null, // 'hls' | 'mp4' — for proxy preview links
     },
   ]);
   const [lessonSkillInputs, setLessonSkillInputs] = useState({});
@@ -194,6 +196,8 @@ function NewCourse({ courseId = null }) {
   const [keywordInput, setKeywordInput] = useState("");
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [existingThumbnailUrl, setExistingThumbnailUrl] = useState(null);
+  /** From redacted API or DB — preview via GET /api/courses/:id/media/thumbnail */
+  const [existingThumbnailMediaPath, setExistingThumbnailMediaPath] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
@@ -293,6 +297,7 @@ function NewCourse({ courseId = null }) {
               learningOutcomes: lesson.learningOutcomes || "",
               videoFile: null, // New video file (optional in edit mode)
               videoUrl: lesson.videoUrl || null, // Existing video URL
+              videoType: lesson.videoType || null,
             }));
             console.log("Loaded lessons with videoUrls:", mappedLessons.map(l => ({ name: l.lessonName, videoUrl: l.videoUrl })));
             setLessons(mappedLessons);
@@ -303,16 +308,16 @@ function NewCourse({ courseId = null }) {
               learningOutcomes: "",
               videoFile: null,
               videoUrl: null,
+              videoType: null,
             }]);
           }
           
           // Pre-fill keywords
           setCourseKeywords(course.keywords || []);
           
-          // Set existing thumbnail URL
-          if (course.thumbnailUrl) {
-            setExistingThumbnailUrl(course.thumbnailUrl);
-          }
+          // Existing thumbnail (admin may have raw URL; public API may only expose path)
+          setExistingThumbnailUrl(course.thumbnailUrl || null);
+          setExistingThumbnailMediaPath(course.thumbnailMediaPath || null);
         }
       } catch (error) {
         console.error("Error loading course data:", error);
@@ -544,6 +549,7 @@ function NewCourse({ courseId = null }) {
         learningOutcomes: "",
         videoFile: null,
         videoUrl: null,
+        videoType: null,
       },
     ]);
   };
@@ -714,8 +720,13 @@ function NewCourse({ courseId = null }) {
 
   const validateStep2 = async () => {
     try {
-      // In edit mode, check if thumbnailFile or existingThumbnailUrl exists
-      if (isEditMode && !thumbnailFile && !existingThumbnailUrl) {
+      // In edit mode, keep existing thumbnail (URL, path, or new upload)
+      if (
+        isEditMode &&
+        !thumbnailFile &&
+        !existingThumbnailUrl &&
+        !existingThumbnailMediaPath
+      ) {
         setThumbnailError("Thumbnail is required. Please upload an image or keep the existing one.");
         return { 
           isValid: false, 
@@ -1858,6 +1869,10 @@ function NewCourse({ courseId = null }) {
               if (lesson.videoFile) {
                 console.log(`Rendering lesson ${lessonIndex} with videoFile:`, lesson.videoFile.name);
               }
+              const lessonPreviewUrl = adminLessonPreviewUrl(
+                lesson.videoUrl,
+                lesson.videoType
+              );
               return (
               <Box
                 key={`lesson-${lessonIndex}-${lesson.lessonName || 'new'}`}
@@ -1993,26 +2008,32 @@ function NewCourse({ courseId = null }) {
                           <Typography variant="caption" color="text.secondary" mb={2}>
                             Current video will be kept. Upload a new video to replace it.
                           </Typography>
-                          <Button
-                            component="a"
-                            href={lesson.videoUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            variant="outlined"
-                            size="small"
-                            startIcon={<PlayArrowRoundedIcon />}
-                            sx={{
-                              borderColor: greenColor,
-                              color: greenColor,
-                              textTransform: "none",
-                              "&:hover": {
+                          {lessonPreviewUrl ? (
+                            <Button
+                              component="a"
+                              href={lessonPreviewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              variant="outlined"
+                              size="small"
+                              startIcon={<PlayArrowRoundedIcon />}
+                              sx={{
                                 borderColor: greenColor,
-                                backgroundColor: "#F1FBF8",
-                              },
-                            }}
-                          >
-                            View Current Video
-                          </Button>
+                                color: greenColor,
+                                textTransform: "none",
+                                "&:hover": {
+                                  borderColor: greenColor,
+                                  backgroundColor: "#F1FBF8",
+                                },
+                              }}
+                            >
+                              View Current Video
+                            </Button>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Preview needs a signed-in session (private storage). Upload a new file or sign in again.
+                            </Typography>
+                          )}
                         </Box>
                       ) : (
                         <>
@@ -2378,11 +2399,15 @@ function NewCourse({ courseId = null }) {
                         Click to change image
                       </Typography>
                     </Box>
-                  ) : existingThumbnailUrl ? (
+                  ) : existingThumbnailUrl || existingThumbnailMediaPath ? (
                     <Box sx={{ position: "relative", width: "100%" }}>
                       <Box
                         component="img"
-                        src={existingThumbnailUrl}
+                        src={courseThumbnailSrc({
+                          thumbnailUrl: existingThumbnailUrl,
+                          thumbnailMediaPath: existingThumbnailMediaPath,
+                          _id: courseId,
+                        })}
                         alt="Current thumbnail"
                         sx={{
                           maxWidth: "100%",

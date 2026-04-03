@@ -22,6 +22,7 @@ import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import Link from "next/link";
 import { getJSON } from "@/utils/http";
+import { courseThumbnailSrc } from "@/utils/mediaProxyUrl";
 import { greenColor, bggreen } from "@/utils/Colors";
 
 function ExploreCourses() {
@@ -90,7 +91,14 @@ function ExploreCourses() {
               instructor: course.instructor || 'Unknown Instructor',
               category: course.category || 'Uncategorized',
               description: course.description || '',
-              thumbnailUrl: course.thumbnailUrl || '/images/default-course.jpg',
+              thumbnailUrl: course.thumbnailUrl,
+              thumbnailMediaPath: course.thumbnailMediaPath,
+              hasThumbnail: course.hasThumbnail,
+              thumbnailSrc: courseThumbnailSrc({
+                _id: course._id || course.id,
+                thumbnailUrl: course.thumbnailUrl,
+                thumbnailMediaPath: course.thumbnailMediaPath,
+              }),
               enrolled: course.enrolled || 0,
               price: finalPrice, // Final price after discount
               originalPrice: hasDiscount ? originalPrice : null, // Original price if discount exists
@@ -463,7 +471,7 @@ function ExploreCourses() {
                   >
                     <Box
                       component="img"
-                      src={course.thumbnailUrl || '/images/default-course.jpg'}
+                      src={course.thumbnailSrc || "/images/default-course.jpg"}
                       alt={course.title}
                       sx={{
                         width: "100%",

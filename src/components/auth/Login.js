@@ -86,7 +86,7 @@ export default function LoginPage() {
         const response = await postJSON("/auth/login", values);
 
         if (response.success && response.data) {
-          persistAuthToken(response.data.token, response.data.user, rememberMe);
+          persistAuthToken(response.data.token || null, response.data.user, rememberMe);
 
           await Swal.fire({
             icon: 'success',

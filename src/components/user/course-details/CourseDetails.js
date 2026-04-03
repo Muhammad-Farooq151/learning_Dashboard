@@ -30,6 +30,7 @@ import CourseCurriculum from "./CourseCurriculum";
 import { getStoredUserId } from "@/utils/authStorage";
 import { getJSON } from "@/utils/http";
 import Swal from "sweetalert2";
+import { courseThumbnailSrc } from "@/utils/mediaProxyUrl";
 
 function CourseDetails({ course }) {
   const router = useRouter();
@@ -69,7 +70,11 @@ function CourseDetails({ course }) {
       title: course.title || 'Untitled Course',
       description: course.description || '',
       about: course.description || '', // Use description as about if no separate about field
-      image: course.thumbnailUrl || '/images/default-course.jpg',
+      image: courseThumbnailSrc({
+        _id: course._id || course.id,
+        thumbnailUrl: course.thumbnailUrl,
+        thumbnailMediaPath: course.thumbnailMediaPath,
+      }),
       price: finalPrice, // Final price after discount
       originalPrice: hasDiscount ? originalPrice : null, // Original price if discount exists
       discountPercentage: discountPercentage,

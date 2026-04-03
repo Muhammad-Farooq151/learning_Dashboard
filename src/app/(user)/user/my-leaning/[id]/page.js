@@ -3,6 +3,7 @@
 import React, { useEffect, useState, use } from "react";
 import CourseLearningPage from "@/components/user/myLearnings/CourseLearningPage";
 import { getJSON } from "@/utils/http";
+import { courseThumbnailSrc } from "@/utils/mediaProxyUrl";
 import { Box, CircularProgress, Typography } from "@mui/material";
 
 function mapCourseResponse(data) {
@@ -11,7 +12,11 @@ function mapCourseResponse(data) {
     title: data.title || "",
     desc: data.description || "",
     progress: 0,
-    img: data.thumbnailUrl || "/images/default-course.png",
+    img: courseThumbnailSrc({
+      _id: data._id,
+      thumbnailUrl: data.thumbnailUrl,
+      thumbnailMediaPath: data.thumbnailMediaPath,
+    }),
     fullData: data,
   };
 }
