@@ -21,95 +21,11 @@ import { useRouter } from "next/navigation";
 import { getJSON } from "@/utils/http";
 import { courseThumbnailSrc } from "@/utils/mediaProxyUrl";
 import { getStoredUserId } from "@/utils/authStorage";
-
-function getWatchedSecondsFromRanges(watchedRanges = [], lessonDuration = 0) {
-  if (!Array.isArray(watchedRanges) || watchedRanges.length === 0) {
-    return 0;
-  }
-
-  const watchedSegments = new Set();
-
-  watchedRanges.forEach((range) => {
-    const start = Number.isFinite(range?.start) ? Math.floor(range.start) : null;
-    const end = Number.isFinite(range?.end) ? Math.floor(range.end) : null;
-
-    if (start === null || end === null || end < start) return;
-
-    for (let second = start; second <= end; second += 1) {
-      if (second >= 0 && second <= lessonDuration) {
-        watchedSegments.add(second);
-      }
-    }
-  });
-
-  return watchedSegments.size;
-}
-
-function getRealLessonProgress(lessonProgress, lessonDuration) {
-  const watchedSecondsFromRanges = getWatchedSecondsFromRanges(
-    lessonProgress?.watchedRanges,
-    lessonDuration
-  );
-
-  const watchedSeconds =
-    watchedSecondsFromRanges > 0
-      ? watchedSecondsFromRanges
-      : Math.min(lessonProgress?.watchedSeconds || 0, lessonDuration);
-
-  const progressPercentage =
-    lessonDuration > 0 ? Math.min(100, Math.round((watchedSeconds / lessonDuration) * 100)) : 0;
-
-  return {
-    watchedSeconds,
-    progressPercentage,
-    isComplete: progressPercentage >= 100,
-  };
-}
-
-function getOverallCourseProgress(allLessons, progressLessons) {
-  const progressMap = {};
-
-  progressLessons.forEach((lessonProgress) => {
-    const lessonIdStr = lessonProgress.lessonId?.toString() || lessonProgress.lessonId;
-    progressMap[lessonIdStr] = lessonProgress;
-  });
-
-  const totalLessons = allLessons.length;
-  const totalDurationSeconds = allLessons.reduce(
-    (sum, lesson) => sum + (lesson.duration || 0),
-    0
-  );
-
-  let completedLessons = 0;
-  let watchedSeconds = 0;
-
-  allLessons.forEach((lesson) => {
-    const lessonIdStr = lesson._id?.toString() || lesson._id;
-    const lessonProgress = progressMap[lessonIdStr];
-    const lessonDuration = lesson.duration || 0;
-    const realLessonProgress = getRealLessonProgress(lessonProgress, lessonDuration);
-
-    if (realLessonProgress.isComplete) {
-      completedLessons += 1;
-    }
-
-    watchedSeconds += realLessonProgress.watchedSeconds;
-  });
-
-  const progressPercentage =
-    totalDurationSeconds > 0
-      ? Math.min(100, Math.round((watchedSeconds / totalDurationSeconds) * 100))
-      : 0;
-
-  return {
-    totalLessons,
-    completedLessons,
-    watchedSeconds,
-    totalDurationSeconds,
-    progressPercentage,
-    isComplete: progressPercentage >= 100 && totalLessons > 0,
-  };
-}
+import {
+  computeAggregateCoursePercent,
+  buildLessonProgressMapFromApi,
+  countVideoLessonStats,
+} from "@/utils/courseProgressPercent";
 
 function MyLearnings() {
   const router = useRouter();
@@ -191,23 +107,27 @@ function MyLearnings() {
                 }
 
                 const progress = progressResponse.data;
-                const progressLessons = progress.lessons || [];
-                const progressSummary = getOverallCourseProgress(allLessons, progressLessons);
+                const progressMap = buildLessonProgressMapFromApi(progress);
+                const listPercent = computeAggregateCoursePercent(allLessons, progressMap);
+                const { completed, total } = countVideoLessonStats(allLessons, progressMap);
+                const isComplete =
+                  !!progress.courseCompleted ||
+                  (listPercent >= 100 && total > 0);
 
                 return {
                   id: course.id,
                   title: course.title,
                   desc: course.description,
-                  progress: progressSummary.progressPercentage,
+                  progress: listPercent,
                   img: courseThumbnailSrc({
                     _id: courseDetails._id || course.id,
                     thumbnailUrl: courseDetails.thumbnailUrl || course.thumbnailUrl,
                     thumbnailMediaPath:
                       courseDetails.thumbnailMediaPath || course.thumbnailMediaPath,
                   }),
-                  isComplete: progressSummary.isComplete,
-                  completedLessons: progressSummary.completedLessons,
-                  totalLessons: progressSummary.totalLessons,
+                  isComplete,
+                  completedLessons: completed,
+                  totalLessons: total,
                 };
               } catch (error) {
                 console.error(`Error fetching progress for course ${course.id}:`, error);

@@ -303,7 +303,7 @@ function CoursesManagement() {
                 // flex: { xs: 1, md: "0 0 300px" },
                 "& .MuiOutlinedInput-root": {
                   borderRadius: 2,
-                  height:"56  ",
+                  height: "56px",
                   bgcolor:"rgba(244, 244, 244, 1)",
                   border:"none",
                   "& fieldset": {
@@ -519,8 +519,8 @@ function CoursesManagement() {
                     },
                   }}
                 >
-                  <TableCell>Course ID</TableCell>
-                  <TableCell>Title</TableCell>
+                  <TableCell sx={{ width: "12%" }}>Course ID</TableCell>
+                  <TableCell sx={{ width: "28%", minWidth: 160 }}>Title</TableCell>
                   <TableCell>Instructor</TableCell>
                   <TableCell>Enrolled</TableCell>
                   <TableCell>Status</TableCell>
@@ -592,10 +592,44 @@ function CoursesManagement() {
                       }}
                     >
                       <TableCell>{course.id}</TableCell>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight={500}>
-                          {course.title}
-                        </Typography>
+                      <TableCell
+                        sx={{
+                          maxWidth: { xs: 160, sm: 220, md: 280 },
+                          verticalAlign: "middle",
+                        }}
+                      >
+                        <Tooltip
+                          title={course.title}
+                          placement="top-start"
+                          enterDelay={400}
+                          slotProps={{
+                            tooltip: {
+                              sx: {
+                                maxWidth: 360,
+                                typography: "body2",
+                                bgcolor: "rgba(15, 23, 42, 0.92)",
+                                fontWeight: 500,
+                              },
+                            },
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            fontWeight={500}
+                            component="span"
+                            display="block"
+                            sx={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              lineHeight: 1.5,
+                              letterSpacing: "0.01em",
+                              color: "text.primary",
+                            }}
+                          >
+                            {course.title}
+                          </Typography>
+                        </Tooltip>
                       </TableCell>
                       <TableCell>{course.instructor}</TableCell>
                       <TableCell>{course.enrolled.toLocaleString()}</TableCell>
