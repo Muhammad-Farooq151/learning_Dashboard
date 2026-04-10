@@ -95,9 +95,9 @@ const createStep1ValidationSchema = (isEditMode) => Yup.object().shape({
         videoFile: isEditMode 
           ? Yup.mixed()
               .nullable()
-              .test("fileSize", "Video file size must be less than 800MB", (value) => {
+              .test("fileSize", "Video file size must be less than 8GB", (value) => {
                 if (!value) return true; // Optional in edit mode
-                return value.size <= 800 * 1024 * 1024;
+                return value.size <= 8 * 1024 * 1024 * 1024;
               })
               .test("fileType", "Only MP4, MOV, and AVI files are allowed", (value) => {
                 if (!value) return true; // Optional in edit mode
@@ -106,9 +106,9 @@ const createStep1ValidationSchema = (isEditMode) => Yup.object().shape({
               })
           : Yup.mixed()
               .required("Video file is required")
-              .test("fileSize", "Video file size must be less than 800MB", (value) => {
+              .test("fileSize", "Video file size must be less than 8GB", (value) => {
                 if (!value) return false;
-                return value.size <= 800 * 1024 * 1024;
+                return value.size <= 8 * 1024 * 1024 * 1024;
               })
               .test("fileType", "Only MP4, MOV, and AVI files are allowed", (value) => {
                 if (!value) return false;
@@ -2060,7 +2060,7 @@ function NewCourse({ courseId = null }) {
                             Drag & Drop video File to Upload
                           </Typography>
                           <Typography variant="caption" color="text.secondary" mb={2}>
-                            Max File Size: Up to 800MB
+                            Max File Size: Up to 8GB
                           </Typography>
                           <Typography variant="caption" color="text.secondary" mb={2}>
                             Supported Formats: MP4, MOV, AVI
