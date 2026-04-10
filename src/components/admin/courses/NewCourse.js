@@ -1875,7 +1875,7 @@ function NewCourse({ courseId = null }) {
               );
               return (
               <Box
-                key={`lesson-${lessonIndex}-${lesson.lessonName || 'new'}`}
+                key={`lesson-${lessonIndex}`}
                 sx={{
                   mb: 4,
                   p: 3,
