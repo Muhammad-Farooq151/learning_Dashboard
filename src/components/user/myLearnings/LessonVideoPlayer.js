@@ -7,9 +7,9 @@ import { Box, Typography, CircularProgress } from "@mui/material";
 import { getStoredToken, getStoredUser } from "@/utils/authStorage";
 import {
   getBackendOrigin,
-  proxiedGcsFileUrl,
   proxiedGcsHlsUrl,
   gcsUrlShouldUseProxy,
+  resolveLessonMediaUrl,
 } from "@/utils/mediaProxyUrl";
 
 /**
@@ -63,14 +63,10 @@ function logHlsError(data) {
   console.warn("[HLS] " + serializeHlsError(data));
 }
 
-/** MP4 / direct file from GCS → authenticated /api/file-proxy (empty string if no token + proxy required) */
-function resolveMp4PlaybackUrl(originalUrl) {
-  return proxiedGcsFileUrl(originalUrl, "");
-}
-
 /**
  * MP4 or HLS (adaptive). HLS uses hls.js where needed; Safari uses native playback.
- * GCS HLS defaults to same-origin proxy (see /api/hls-proxy) so learners need not configure bucket CORS.
+ * GCS HLS: default proxy mode uses /api/hls-proxy. Section 6 — NEXT_PUBLIC_MEDIA_DELIVERY=signed loads
+ * storage.googleapis.com playlist URL from GET /api/lessons/:lessonId/stream (no CDN domain swap); segments via /api/media/chunk.
  */
 function isSignedMediaDeliveryEnabled() {
   if (typeof window === "undefined") return false;
@@ -116,13 +112,18 @@ export default function LessonVideoPlayer({
     if (!video || !url) return undefined;
 
     if (videoType !== "hls") {
-      const mp4 = resolveMp4PlaybackUrl(url);
-      if (!mp4) {
-        video.removeAttribute("src");
-        return undefined;
-      }
-      video.src = mp4;
+      let cancelled = false;
+      (async () => {
+        const mp4 = await resolveLessonMediaUrl(url, "mp4");
+        if (cancelled || !videoRef.current) return;
+        if (!mp4) {
+          video.removeAttribute("src");
+          return;
+        }
+        video.src = mp4;
+      })();
       return () => {
+        cancelled = true;
         video.removeAttribute("src");
         video.load();
       };

@@ -118,6 +118,60 @@ export function proxiedGcsFileUrl(originalUrl, fallback = "/images/default-cours
   return base;
 }
 
+let devCdnEnvLogged = false;
+
+/**
+ * MP4 (and non-HLS file) playback URL: optional direct GCS signed URL when
+ * NEXT_PUBLIC_MEDIA_CDN_ENABLED + server GCS_SIGN_FOR_CDN; else existing file proxy.
+ * HLS: always returns proxied master URL (unchanged).
+ */
+export async function resolveLessonMediaUrl(originalUrl, videoType = "mp4") {
+  if (typeof window === "undefined" || !originalUrl) {
+    return typeof originalUrl === "string" ? originalUrl : "";
+  }
+
+  const isHls =
+    videoType === "hls" || /\.m3u8(\?|$)/i.test(originalUrl);
+  if (isHls) {
+    return proxiedGcsHlsUrl(originalUrl);
+  }
+
+  if (!gcsUrlShouldUseProxy(originalUrl, "file")) {
+    return proxiedGcsFileUrl(originalUrl, "");
+  }
+
+  const cdn =
+    String(process.env.NEXT_PUBLIC_MEDIA_CDN_ENABLED || "").toLowerCase() === "true";
+  if (!cdn) {
+    return proxiedGcsFileUrl(originalUrl, "");
+  }
+
+  if (process.env.NODE_ENV === "development" && !devCdnEnvLogged) {
+    devCdnEnvLogged = true;
+    console.log("CDN FLAG:", process.env.NEXT_PUBLIC_MEDIA_CDN_ENABLED);
+  }
+
+  const token = getStoredToken();
+  if (!token && !hasSessionForMediaProxy()) {
+    return proxiedGcsFileUrl(originalUrl, "");
+  }
+
+  try {
+    const api = `${getBackendOrigin()}/api/media/signed-read-url?u=${encodeURIComponent(originalUrl)}&type=file`;
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(api, { credentials: "include", headers });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.success && typeof data.url === "string" && data.url.length > 0) {
+      return data.url;
+    }
+  } catch (e) {
+    console.warn("[media] signed-read-url failed, using file proxy", e?.message || e);
+  }
+
+  return proxiedGcsFileUrl(originalUrl, "");
+}
+
 /**
  * Admin "open in new tab" for lesson video — uses HLS vs file proxy with optional ?token=.
  * Returns null only when a proxied GCS URL is required but there is no session.

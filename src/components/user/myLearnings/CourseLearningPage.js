@@ -46,6 +46,10 @@ import { getStoredUserId } from "@/utils/authStorage";
 import { proxiedGcsFileUrl } from "@/utils/mediaProxyUrl";
 import LessonVideoPlayer from "@/components/user/myLearnings/LessonVideoPlayer";
 import WatchedRangesTimeline from "@/components/user/myLearnings/WatchedRangesTimeline";
+import {
+  computeAggregateCoursePercent,
+  buildLessonProgressMapFromApi,
+} from "@/utils/courseProgressPercent";
 
 // Helper function to format duration from seconds to "X Minutes" or "X Hours Y Minutes"
 const formatDuration = (seconds) => {
@@ -99,25 +103,7 @@ function CourseLearningPage({ courseId, course }) {
       try {
         const res = await getJSON(`progress/${courseId}?userId=${uid}`);
         if (cancelled || !res?.success || !res.data) return;
-        const map = {};
-        for (const l of res.data.lessons || []) {
-          const lid = String(l.lessonId?._id || l.lessonId);
-          const dur = Number(l.duration) || 0;
-          const wp =
-            Number(l.watchedPercent) >= 0
-              ? Math.min(100, Number(l.watchedPercent))
-              : dur > 0 && l.watched != null
-                ? Math.min(100, Math.round((Number(l.watched) / dur) * 100))
-                : 0;
-          map[lid] = {
-            watchedPercent: wp,
-            completed: !!l.completed,
-            watched: l.watched ?? l.resumeTime ?? 0,
-            watchedRanges: Array.isArray(l.watchedRanges) ? l.watchedRanges : [],
-            /** From progress doc — actual video length used server-side (fallback when course.lesson.duration is 0) */
-            videoDurationSec: Number(l.duration) || 0,
-          };
-        }
+        const map = buildLessonProgressMapFromApi(res.data);
         setProgressState({
           map,
           coursePercent: res.data.coursePercent ?? res.data.overallProgress ?? 0,
@@ -266,7 +252,11 @@ function CourseLearningPage({ courseId, course }) {
     return Math.max(fromLesson, fromPlayer, maxEnd);
   }, [selectedLesson?.durationSeconds, selectedLessonProgress]);
 
-  const courseProgress = progressState.coursePercent;
+  /** Header bar — derived from the same lesson map as "X% watched" (updates on every local progress tick). */
+  const courseProgress = useMemo(
+    () => computeAggregateCoursePercent(course?.fullData?.lessons, progressState.map),
+    [course?.fullData?.lessons, progressState.map]
+  );
 
   const videoProgressTracking = useMemo(() => {
     if (!selectedLesson || !courseId || !progressUserId || selectedLesson.type !== "Video") {

@@ -13,6 +13,7 @@ const toStringId = (value) => {
   return null;
 };
 
+
 const sanitizeUser = (user = {}) => {
   if (!user) return null;
   return {
