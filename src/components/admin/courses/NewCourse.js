@@ -41,11 +41,30 @@ import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import { greenColor } from "@/utils/Colors";
 import Swal from "sweetalert2";
-import { postFormData, putFormData, getJSON } from "@/utils/http";
+import { postFormData, putFormData, getJSON, postJSON } from "@/utils/http";
 import { courseThumbnailSrc, adminLessonPreviewUrl } from "@/utils/mediaProxyUrl";
 import * as Yup from "yup";
 
 const steps = ["Course Details", "Upload Course Video", "Ready to Publish"];
+
+/** Lesson videos at or above this size upload directly to GCS (signed URL) to avoid Cloud Run ~32 MiB request limits. */
+const DIRECT_GCS_UPLOAD_MIN_BYTES =
+  process.env.NEXT_PUBLIC_DIRECT_GCS_UPLOAD_MIN_BYTES != null &&
+  process.env.NEXT_PUBLIC_DIRECT_GCS_UPLOAD_MIN_BYTES !== ""
+    ? parseInt(process.env.NEXT_PUBLIC_DIRECT_GCS_UPLOAD_MIN_BYTES, 10)
+    : 28 * 1024 * 1024;
+
+async function putFileToGcsSignedUrl(uploadUrl, file, contentType) {
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": contentType || file.type || "video/mp4" },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Direct upload failed (${res.status})`);
+  }
+}
 
 // Validation schemas for each step
 const step0ValidationSchema = Yup.object().shape({
@@ -876,6 +895,63 @@ function NewCourse({ courseId = null }) {
     return errorMessages.length > 0 ? errorMessages : null;
   };
 
+  /** Large lesson files: presign → PUT to GCS → return plan for createCourse/updateCourse (small multipart only). */
+  const prepareLessonVideoDirectUploadPlan = async () => {
+    const needDirect = [];
+    lessons.forEach((lesson, index) => {
+      if (lesson.videoFile && lesson.videoFile.size >= DIRECT_GCS_UPLOAD_MIN_BYTES) {
+        needDirect.push({ index, lesson });
+      }
+    });
+    if (needDirect.length === 0) return null;
+
+    if (!isEditMode) {
+      const payload = {
+        lessons: needDirect.map(({ index, lesson }) => ({
+          lessonIndex: index,
+          fileName: lesson.videoFile.name,
+          fileSize: lesson.videoFile.size,
+        })),
+      };
+      const res = await postJSON("courses/presign-lesson-videos", payload);
+      if (!res?.success || !res?.data) {
+        throw new Error(res?.message || "Could not prepare direct video upload");
+      }
+      const { courseId, lessons: signed } = res.data;
+      for (const s of signed) {
+        const les = lessons[s.lessonIndex];
+        await putFileToGcsSignedUrl(s.uploadUrl, les.videoFile, s.contentType);
+      }
+      return {
+        courseId,
+        lessons: signed.map((s) => ({
+          lessonIndex: s.lessonIndex,
+          lessonId: s.lessonId,
+          objectKey: s.objectKey,
+        })),
+      };
+    }
+
+    const outLessons = [];
+    for (const { index, lesson } of needDirect) {
+      const res = await postJSON(`courses/${courseId}/presign-lesson-video`, {
+        lessonIndex: index,
+        fileName: lesson.videoFile.name,
+        fileSize: lesson.videoFile.size,
+      });
+      if (!res?.success || !res?.data) {
+        throw new Error(res?.message || "Could not prepare direct video upload");
+      }
+      const d = res.data;
+      await putFileToGcsSignedUrl(d.uploadUrl, lesson.videoFile, d.contentType);
+      outLessons.push({
+        lessonIndex: d.lessonIndex,
+        objectKey: d.objectKey,
+      });
+    }
+    return { lessons: outLessons };
+  };
+
   const handlePublish = async () => {
     try {
       // Validate all steps using Yup
@@ -903,6 +979,22 @@ function NewCourse({ courseId = null }) {
           Swal.showLoading();
         },
       });
+
+      let directPlan = null;
+      try {
+        directPlan = await prepareLessonVideoDirectUploadPlan();
+      } catch (directErr) {
+        Swal.close();
+        setIsSubmitting(false);
+        await Swal.fire({
+          icon: 'error',
+          title: 'Upload Failed',
+          text: directErr.message || 'Direct video upload failed.',
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'OK',
+        });
+        return;
+      }
 
       // Create FormData
       const formData = new FormData();
@@ -940,12 +1032,23 @@ function NewCourse({ courseId = null }) {
         }
       });
       
-      // Prepare lessons data (without video files, they'll be added separately)
-      const lessonsData = lessons.map(lesson => ({
-        lessonName: lesson.lessonName,
-        skills: lesson.skills || [],
-        learningOutcomes: lesson.learningOutcomes,
-      }));
+      const largeIdx = new Set((directPlan?.lessons || []).map((l) => l.lessonIndex));
+      const idByDirect = new Map(
+        (directPlan?.lessons || [])
+          .filter((x) => x.lessonId)
+          .map((x) => [x.lessonIndex, x.lessonId])
+      );
+
+      const lessonsData = lessons.map((lesson, index) => {
+        const row = {
+          lessonName: lesson.lessonName,
+          skills: lesson.skills || [],
+          learningOutcomes: lesson.learningOutcomes,
+        };
+        const lid = idByDirect.get(index);
+        if (lid) row._id = lid;
+        return row;
+      });
       formData.append('lessons', JSON.stringify(lessonsData));
       
       // Add thumbnail
@@ -953,17 +1056,28 @@ function NewCourse({ courseId = null }) {
         formData.append('thumbnail', thumbnailFile);
       }
       
-      // Add lesson videos with their lesson indices
-      // We need to track which lesson each video belongs to
       const videoIndices = [];
       lessons.forEach((lesson, index) => {
-        if (lesson.videoFile) {
+        if (lesson.videoFile && !largeIdx.has(index)) {
           formData.append('lessonVideos', lesson.videoFile);
-          videoIndices.push(index); // Track which lesson index this video belongs to
+          videoIndices.push(index);
         }
       });
-      // Send the mapping of video indices to lesson indices
       formData.append('videoIndices', JSON.stringify(videoIndices));
+
+      if (directPlan && directPlan.lessons?.length) {
+        if (isEditMode) {
+          formData.append('directUploadPlan', JSON.stringify({ lessons: directPlan.lessons }));
+        } else {
+          formData.append(
+            'directUploadPlan',
+            JSON.stringify({
+              courseId: directPlan.courseId,
+              lessons: directPlan.lessons,
+            })
+          );
+        }
+      }
 
       // Make API call - use PUT for edit mode, POST for new course
       const apiUrl = isEditMode ? `/courses/${courseId}` : '/courses';
@@ -1023,6 +1137,22 @@ function NewCourse({ courseId = null }) {
         },
       });
 
+      let directPlan = null;
+      try {
+        directPlan = await prepareLessonVideoDirectUploadPlan();
+      } catch (directErr) {
+        Swal.close();
+        setIsSubmitting(false);
+        await Swal.fire({
+          icon: 'error',
+          title: 'Upload Failed',
+          text: directErr.message || 'Direct video upload failed.',
+          confirmButtonColor: '#d33',
+          confirmButtonText: 'OK',
+        });
+        return;
+      }
+
       // Create FormData
       const formData = new FormData();
       
@@ -1059,12 +1189,23 @@ function NewCourse({ courseId = null }) {
         }
       });
       
-      // Prepare lessons data
-      const lessonsData = lessons.map(lesson => ({
-        lessonName: lesson.lessonName || '',
-        skills: lesson.skills || [],
-        learningOutcomes: lesson.learningOutcomes || '',
-      }));
+      const largeIdx = new Set((directPlan?.lessons || []).map((l) => l.lessonIndex));
+      const idByDirect = new Map(
+        (directPlan?.lessons || [])
+          .filter((x) => x.lessonId)
+          .map((x) => [x.lessonIndex, x.lessonId])
+      );
+
+      const lessonsData = lessons.map((lesson, index) => {
+        const row = {
+          lessonName: lesson.lessonName || '',
+          skills: lesson.skills || [],
+          learningOutcomes: lesson.learningOutcomes || '',
+        };
+        const lid = idByDirect.get(index);
+        if (lid) row._id = lid;
+        return row;
+      });
       formData.append('lessons', JSON.stringify(lessonsData));
       
       // Add thumbnail if provided
@@ -1072,15 +1213,28 @@ function NewCourse({ courseId = null }) {
         formData.append('thumbnail', thumbnailFile);
       }
       
-      // Add lesson videos with their lesson indices
       const videoIndices = [];
       lessons.forEach((lesson, index) => {
-        if (lesson.videoFile) {
+        if (lesson.videoFile && !largeIdx.has(index)) {
           formData.append('lessonVideos', lesson.videoFile);
           videoIndices.push(index);
         }
       });
       formData.append('videoIndices', JSON.stringify(videoIndices));
+
+      if (directPlan && directPlan.lessons?.length) {
+        if (isEditMode) {
+          formData.append('directUploadPlan', JSON.stringify({ lessons: directPlan.lessons }));
+        } else {
+          formData.append(
+            'directUploadPlan',
+            JSON.stringify({
+              courseId: directPlan.courseId,
+              lessons: directPlan.lessons,
+            })
+          );
+        }
+      }
 
       // Make API call - use PUT for edit mode, POST for new course
       const apiUrl = isEditMode ? `/courses/${courseId}` : '/courses';
