@@ -9,6 +9,8 @@ export const ADMIN_EMAIL_NAV_ITEMS = [
 export const ADMIN_NAV_ITEMS = [
   { label: "Dashboard", href: "/admin/dashboard", iconPath: "/images/sidebar/admin/dashboard.svg" },
   { label: "Courses", href: "/admin/courses", iconPath: "/images/sidebar/admin/courses.svg" },
+  { label: "Categories", href: "/admin/categories", iconPath: "/images/sidebar/admin/category.svg" },
+  { label: "Course Levels", href: "/admin/course-levels", iconPath: "/images/sidebar/admin/course-level.svg" },
   { label: "Users", href: "/admin/users", iconPath: "/images/sidebar/admin/users.svg" },
   { label: "Tutors", href: "/admin/tutors", iconPath: "/images/sidebar/admin/tutors.svg" },
   { label: "Admins", href: "/admin/admins", iconPath: "/images/sidebar/admin/admins.svg" },
@@ -25,6 +27,8 @@ export const ADMIN_NAV_ITEMS = [
 const ADMIN_ROUTE_META = [
   { match: (pathname) => pathname === "/admin/dashboard", title: "Dashboard" },
   { match: (pathname) => pathname === "/admin/courses", title: "Courses" },
+  { match: (pathname) => pathname === "/admin/categories", title: "Categories" },
+  { match: (pathname) => pathname === "/admin/course-levels", title: "Course Levels" },
   { match: (pathname) => pathname.startsWith("/admin/courses/new"), title: "New Course" },
   { match: (pathname) => pathname.startsWith("/admin/courses/edit/"), title: "Edit Course" },
   { match: (pathname) => pathname === "/admin/users", title: "Users" },

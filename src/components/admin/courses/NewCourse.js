@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -15,7 +15,6 @@ import {
   FormControl,
   FormHelperText,
   Select,
-  Menu,
   MenuItem,
   Chip,
   Autocomplete,
@@ -38,7 +37,6 @@ import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
 import ImageRoundedIcon from "@mui/icons-material/ImageRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
-import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import { greenColor } from "@/utils/Colors";
 import Swal from "sweetalert2";
 import { postFormData, putFormData, getJSON, postJSON } from "@/utils/http";
@@ -64,6 +62,16 @@ async function putFileToGcsSignedUrl(uploadUrl, file, contentType) {
     const text = await res.text();
     throw new Error(text || `Direct upload failed (${res.status})`);
   }
+}
+
+/** Category / course level: persist display names only (never Mongo ids or option objects). */
+function selectionNameOnly(value) {
+  if (value == null || value === "") return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "object" && value !== null && typeof value.name === "string") {
+    return value.name.trim();
+  }
+  return "";
 }
 
 // Validation schemas for each step
@@ -222,18 +230,78 @@ function NewCourse({ courseId = null }) {
   const [errors, setErrors] = useState({});
   const [lessonErrors, setLessonErrors] = useState({});
   const [thumbnailError, setThumbnailError] = useState("");
-  const [categoryAnchorEl, setCategoryAnchorEl] = useState(null);
-  const [courseLevelAnchorEl, setCourseLevelAnchorEl] = useState(null);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [courseLevelsLoading, setCourseLevelsLoading] = useState(true);
 
-  const categoryOptions = [
+  const DEFAULT_CATEGORY_OPTIONS = [
     "AI Agents & Agentic AI",
     "Programming",
     "Design",
     "Data Science",
     "AI/ML",
   ];
+  const [categoryOptions, setCategoryOptions] = useState(DEFAULT_CATEGORY_OPTIONS);
 
-  const courseLevelOptions = ["Beginner", "Intermediate", "Expert"];
+  const DEFAULT_COURSE_LEVEL_OPTIONS = ["Beginner", "Intermediate", "Expert"];
+  const [courseLevelOptions, setCourseLevelOptions] = useState(DEFAULT_COURSE_LEVEL_OPTIONS);
+
+  useEffect(() => {
+    const fetchCourseLevels = async () => {
+      try {
+        setCourseLevelsLoading(true);
+        const response = await getJSON("course-levels");
+        if (response?.success && Array.isArray(response.data) && response.data.length > 0) {
+          const names = response.data
+            .map((r) => (r && typeof r.name === "string" ? r.name.trim() : ""))
+            .filter(Boolean);
+          setCourseLevelOptions(names);
+        }
+      } catch (e) {
+        console.warn("[NewCourse] course-levels API:", e?.message || e);
+      } finally {
+        setCourseLevelsLoading(false);
+      }
+    };
+    fetchCourseLevels();
+  }, []);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const response = await getJSON("categories");
+        if (response?.success && Array.isArray(response.data) && response.data.length > 0) {
+          const names = response.data
+            .map((c) => (c && typeof c.name === "string" ? c.name.trim() : ""))
+            .filter(Boolean);
+          setCategoryOptions(names);
+        }
+      } catch (e) {
+        console.warn("[NewCourse] categories API:", e?.message || e);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  const categoryAutocompleteOptions = useMemo(() => {
+    const base = [...categoryOptions];
+    const c = courseData.category?.trim();
+    if (c && !base.includes(c)) {
+      return [c, ...base];
+    }
+    return base;
+  }, [categoryOptions, courseData.category]);
+
+  const courseLevelAutocompleteOptions = useMemo(() => {
+    const base = [...courseLevelOptions];
+    const lv = courseData.courseLevel?.trim();
+    if (lv && !base.includes(lv)) {
+      return [lv, ...base];
+    }
+    return base;
+  }, [courseLevelOptions, courseData.courseLevel]);
 
   // Fetch tutors
   useEffect(() => {
@@ -366,52 +434,6 @@ function NewCourse({ courseId = null }) {
         [field]: "",
       });
     }
-  };
-
-  const handleCategoryClick = (event) => {
-    setCategoryAnchorEl(event.currentTarget);
-  };
-
-  const handleCategoryClose = () => {
-    setCategoryAnchorEl(null);
-  };
-
-  const handleCategorySelect = (category) => {
-    setCourseData({
-      ...courseData,
-      category: category,
-    });
-    // Clear error when category is selected
-    if (errors.category) {
-      setErrors({
-        ...errors,
-        category: "",
-      });
-    }
-    handleCategoryClose();
-  };
-
-  const handleCourseLevelClick = (event) => {
-    setCourseLevelAnchorEl(event.currentTarget);
-  };
-
-  const handleCourseLevelClose = () => {
-    setCourseLevelAnchorEl(null);
-  };
-
-  const handleCourseLevelSelect = (level) => {
-    setCourseData({
-      ...courseData,
-      courseLevel: level,
-    });
-    // Clear error when course level is selected
-    if (errors.courseLevel) {
-      setErrors({
-        ...errors,
-        courseLevel: "",
-      });
-    }
-    handleCourseLevelClose();
   };
 
   // Calculate discounted price
@@ -1001,11 +1023,11 @@ function NewCourse({ courseId = null }) {
       
       // Add basic fields
       formData.append('title', courseData.title);
-      formData.append('category', courseData.category);
+      formData.append('category', selectionNameOnly(courseData.category));
       formData.append('instructor', courseData.instructor);
       formData.append('price', courseData.price);
       formData.append('discountPercentage', courseData.discountPercentage || '0');
-      if (courseData.courseLevel) formData.append('courseLevel', courseData.courseLevel);
+      formData.append('courseLevel', selectionNameOnly(courseData.courseLevel));
       formData.append('taxPercentage', courseData.taxPercentage || '0');
       formData.append('description', courseData.description);
       formData.append('status', 'published');
@@ -1158,11 +1180,13 @@ function NewCourse({ courseId = null }) {
       
       // Add basic fields
       formData.append('title', courseData.title);
-      if (courseData.category) formData.append('category', courseData.category);
+      const draftCategory = selectionNameOnly(courseData.category);
+      if (draftCategory) formData.append('category', draftCategory);
       if (courseData.instructor) formData.append('instructor', courseData.instructor);
       if (courseData.price) formData.append('price', courseData.price);
       if (courseData.discountPercentage) formData.append('discountPercentage', courseData.discountPercentage);
-      if (courseData.courseLevel) formData.append('courseLevel', courseData.courseLevel);
+      const draftLevel = selectionNameOnly(courseData.courseLevel);
+      if (draftLevel) formData.append('courseLevel', draftLevel);
       if (courseData.taxPercentage) formData.append('taxPercentage', courseData.taxPercentage);
       if (courseData.description) formData.append('description', courseData.description);
       formData.append('status', 'draft');
@@ -1310,152 +1334,122 @@ function NewCourse({ courseId = null }) {
                   <Typography variant="body2" fontWeight={500} mb={1}>
                     Category
                   </Typography>
-                  <Box sx={{ position: "relative" }}>
-                    <Button
-                      variant="outlined"
-                      onClick={handleCategoryClick}
-                      endIcon={<KeyboardArrowDownRoundedIcon />}
-                      fullWidth
-                      sx={{
-                        justifyContent: "space-between",
-                        border: errors.category ? "1px solid #d32f2f" : "1px solid #E2E8F0",
-                        height: "56px",
-                        bgcolor: "white",
-                        color: courseData.category ? "black" : "#64748B",
-                        textTransform: "none",
-                        borderRadius: 2,
-                        "&:hover": {
-                          border: errors.category ? "1px solid #d32f2f" : "1px solid #E2E8F0",
-                          backgroundColor: "white",
-                        },
-                      }}
-                    >
-                      {courseData.category || "Select Category"}
-                    </Button>
-                    <Menu
-                      anchorEl={categoryAnchorEl}
-                      open={Boolean(categoryAnchorEl)}
-                      onClose={handleCategoryClose}
-                      disablePortal={true}
-                      anchorOrigin={{
-                        vertical: "bottom",
-                        horizontal: "left",
-                      }}
-                      transformOrigin={{
-                        vertical: "top",
-                        horizontal: "left",
-                      }}
-                      PaperProps={{
-                        sx: {
-                          mt: 0.5,
-                          minWidth: 200,
-                          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-                          borderRadius: 2,
-                          border: "1px solid #E2E8F0",
-                          maxHeight: 300,
-                          overflow: "auto",
-                        },
-                      }}
-                      MenuListProps={{
-                        sx: { py: 0.5 },
-                      }}
-                    >
-                      {categoryOptions.map((category) => (
-                        <MenuItem
-                          key={category}
-                          onClick={() => handleCategorySelect(category)}
-                          sx={{
-                            backgroundColor:
-                              courseData.category === category ? "#F1F5F9" : "transparent",
-                            "&:hover": { backgroundColor: "#F8FAFC" },
-                          }}
-                        >
-                          {category}
-                        </MenuItem>
-                      ))}
-                    </Menu>
-                    {errors.category && (
-                      <FormHelperText error sx={{ mt: 0.5, mx: 1.75 }}>
-                        {errors.category}
-                      </FormHelperText>
+                  <Autocomplete
+                    fullWidth
+                    options={categoryAutocompleteOptions}
+                    loading={categoriesLoading}
+                    value={courseData.category || null}
+                    onChange={(e, newValue) => {
+                      setCourseData({ ...courseData, category: selectionNameOnly(newValue) });
+                      if (errors.category) {
+                        setErrors({ ...errors, category: "" });
+                      }
+                    }}
+                    isOptionEqualToValue={(opt, val) => opt === val}
+                    getOptionLabel={(opt) => (typeof opt === "string" ? opt : "")}
+                    filterOptions={(opts, state) => {
+                      const q = state.inputValue.trim().toLowerCase();
+                      if (!q) return opts;
+                      return opts.filter((o) => o.toLowerCase().includes(q));
+                    }}
+                    noOptionsText={categoriesLoading ? "Loading…" : "No category matches"}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder="Search or select category"
+                        error={Boolean(errors.category)}
+                        helperText={errors.category}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {categoriesLoading ? (
+                                <CircularProgress color="inherit" size={20} />
+                              ) : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
                     )}
-                  </Box>
+                    slotProps={{
+                      listbox: {
+                        sx: {
+                          maxHeight: 280,
+                          overflow: "auto",
+                          py: 0.5,
+                        },
+                      },
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        minHeight: 56,
+                        alignItems: "center",
+                      },
+                    }}
+                  />
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Typography variant="body2" fontWeight={500} mb={1}>
                     Course Level *
                   </Typography>
-                  <Box sx={{ position: "relative" }}>
-                    <Button
-                      variant="outlined"
-                      onClick={handleCourseLevelClick}
-                      endIcon={<KeyboardArrowDownRoundedIcon />}
-                      fullWidth
-                      sx={{
-                        justifyContent: "space-between",
-                        border: errors.courseLevel ? "1px solid #d32f2f" : "1px solid #E2E8F0",
-                        height: "56px",
-                        bgcolor: "white",
-                        color: courseData.courseLevel ? "black" : "#64748B",
-                        textTransform: "none",
-                        borderRadius: 2,
-                        "&:hover": {
-                          border: errors.courseLevel ? "1px solid #d32f2f" : "1px solid #E2E8F0",
-                          backgroundColor: "white",
-                        },
-                      }}
-                    >
-                      {courseData.courseLevel || "Select Course Level"}
-                    </Button>
-                    <Menu
-                      anchorEl={courseLevelAnchorEl}
-                      open={Boolean(courseLevelAnchorEl)}
-                      onClose={handleCourseLevelClose}
-                      disablePortal={true}
-                      anchorOrigin={{
-                        vertical: "bottom",
-                        horizontal: "left",
-                      }}
-                      transformOrigin={{
-                        vertical: "top",
-                        horizontal: "left",
-                      }}
-                      PaperProps={{
-                        sx: {
-                          mt: 0.5,
-                          minWidth: 200,
-                          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-                          borderRadius: 2,
-                          border: "1px solid #E2E8F0",
-                          maxHeight: 300,
-                          overflow: "auto",
-                        },
-                      }}
-                      MenuListProps={{
-                        sx: { py: 0.5 },
-                      }}
-                    >
-                      {courseLevelOptions.map((level) => (
-                        <MenuItem
-                          key={level}
-                          onClick={() => handleCourseLevelSelect(level)}
-                          sx={{
-                            backgroundColor:
-                              courseData.courseLevel === level ? "#F1F5F9" : "transparent",
-                            "&:hover": { backgroundColor: "#F8FAFC" },
-                          }}
-                        >
-                          {level}
-                        </MenuItem>
-                      ))}
-                    </Menu>
-                    {errors.courseLevel && (
-                      <FormHelperText error sx={{ mt: 0.5, mx: 1.75 }}>
-                        {errors.courseLevel}
-                      </FormHelperText>
+                  <Autocomplete
+                    fullWidth
+                    options={courseLevelAutocompleteOptions}
+                    loading={courseLevelsLoading}
+                    value={courseData.courseLevel || null}
+                    onChange={(e, newValue) => {
+                      setCourseData({ ...courseData, courseLevel: selectionNameOnly(newValue) });
+                      if (errors.courseLevel) {
+                        setErrors({ ...errors, courseLevel: "" });
+                      }
+                    }}
+                    isOptionEqualToValue={(opt, val) => opt === val}
+                    getOptionLabel={(opt) => (typeof opt === "string" ? opt : "")}
+                    filterOptions={(opts, state) => {
+                      const q = state.inputValue.trim().toLowerCase();
+                      if (!q) return opts;
+                      return opts.filter((o) => o.toLowerCase().includes(q));
+                    }}
+                    noOptionsText={courseLevelsLoading ? "Loading…" : "No level matches"}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder="Search or select course level"
+                        error={Boolean(errors.courseLevel)}
+                        helperText={errors.courseLevel}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {courseLevelsLoading ? (
+                                <CircularProgress color="inherit" size={20} />
+                              ) : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
                     )}
-                  </Box>
+                    slotProps={{
+                      listbox: {
+                        sx: {
+                          maxHeight: 280,
+                          overflow: "auto",
+                          py: 0.5,
+                        },
+                      },
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        minHeight: 56,
+                        alignItems: "center",
+                      },
+                    }}
+                  />
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 6 }}>

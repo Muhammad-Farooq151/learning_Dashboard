@@ -2,7 +2,20 @@ import { createTheme } from "@mui/material/styles";
 
 const fontFamily = '"DM Sans", Arial, Helvetica, sans-serif';
 
+/** Default MUI modal (1300) sits under admin full-screen loader (z-index 999999). */
+const Z_ABOVE_ADMIN_OVERLAY = 1_999_000;
+
 const theme = createTheme({
+  zIndex: {
+    mobileStepper: Z_ABOVE_ADMIN_OVERLAY + 100,
+    fab: Z_ABOVE_ADMIN_OVERLAY + 200,
+    speedDial: Z_ABOVE_ADMIN_OVERLAY + 200,
+    appBar: Z_ABOVE_ADMIN_OVERLAY + 300,
+    drawer: Z_ABOVE_ADMIN_OVERLAY + 400,
+    modal: Z_ABOVE_ADMIN_OVERLAY + 500,
+    snackbar: Z_ABOVE_ADMIN_OVERLAY + 600,
+    tooltip: Z_ABOVE_ADMIN_OVERLAY + 700,
+  },
   typography: {
     fontFamily,
     h1: { fontFamily },
